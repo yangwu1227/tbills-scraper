@@ -1,0 +1,226 @@
+name: Terraform Deployment
+
+on:
+  workflow_call:
+    inputs:
+      root_path:
+        required: true
+        type: string
+    secrets:
+      AWS_REGION:
+        required: true
+      AWS_GITHUB_ACTIONS_ROLE_ARN:
+        required: true
+
+env:
+  TERRAFORM_VERSION: 1.12.2
+
+permissions:
+  id-token: write # Required for requesting the Json Web Token (JWT)
+  contents: read  # Required for actions/checkout
+  pull-requests: write # Required for updating the PR with the Terraform plan
+
+jobs:
+  terraform-fmt-validate-plan:
+    name: Format, validate and plan Terraform
+    runs-on: ubuntu-latest
+
+    defaults:
+        run:
+          working-directory: ${{ inputs.root_path }}
+
+    steps:
+      - name: Checkout repository
+        id: checkout-repo
+        uses: actions/checkout@v4   
+
+      - name: Configure AWS credentials from OIDC
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          audience: sts.amazonaws.com
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-session-name: fmt-validate-plan-session
+          output-credentials: true
+
+      - name: Add profile credentials to ~/.aws/credentials 
+        id: add-profile-credentials
+        run: |
+          aws configure set aws_access_key_id ${{ env.AWS_ACCESS_KEY_ID }} --profile admin
+          aws configure set aws_secret_access_key ${{ env.AWS_SECRET_ACCESS_KEY }} --profile admin
+          aws configure set aws_session_token ${{ env.AWS_SESSION_TOKEN }} --profile admin
+        env:
+            AWS_ACCESS_KEY_ID: ${{ steps.configure-aws-credentials.outputs.aws-access-key-id }}
+            AWS_SECRET_ACCESS_KEY: ${{ steps.configure-aws-credentials.outputs.aws-secret-access-key }}
+            AWS_SESSION_TOKEN: ${{ steps.configure-aws-credentials.outputs.aws-session-token }}
+
+      - name: Set up Terraform
+        id: setup-terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform format
+        id: terraform-fmt
+        run: terraform fmt -check
+        continue-on-error: true
+
+      - name: Terraform init
+        id: terraform-init
+        run: terraform init -no-color
+
+      - name: Upload Terraform artifacts
+        id: upload-terraform-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-artifacts
+          include-hidden-files: true
+          path: |
+            ${{ inputs.root_path }}/.terraform
+            ${{ inputs.root_path }}/.terraform.lock.hcl
+          retention-days: 1
+
+      - name: Terraform validate
+        id: terraform-validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        id: terraform-plan
+        run: |
+          terraform plan -out=plan -no-color 
+          terraform plan -no-color
+        continue-on-error: true
+
+      - name: Upload plan as artifact
+        id: upload-plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ inputs.root_path }}/plan # Use absolute path since this action does not use `working-directory`
+          retention-days: 1
+
+      - name: Update pull request comment with Terraform plan
+        id: update-pr-comment-with-plan
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.terraform-plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
+            })
+      
+            // 2. Prepare format of the comment
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.terraform-fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.terraform-init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.terraform-validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+      
+            \`\`\`\n
+            ${{ steps.terraform-validate.outputs.stdout }}
+            \`\`\`
+      
+            </details>
+      
+            #### Terraform Plan 📖\`${{ steps.terraform-plan.outcome }}\`
+      
+            <details><summary>Show Plan</summary>
+      
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+      
+            </details>
+      
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+      
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
+
+  terraform-apply:
+    name: Terraform apply
+    runs-on: ubuntu-latest
+
+    # Requires the plan artifact from the previous job and only when the branch is main
+    needs: terraform-fmt-validate-plan
+    if: github.ref == 'refs/heads/main' 
+
+    defaults:
+        run:
+          working-directory: ${{ inputs.root_path }}
+
+    steps:
+      - name: Checkout repository
+        id: checkout-repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials from OIDC
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          audience: sts.amazonaws.com
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-session-name: apply-session
+          output-credentials: true
+
+      - name: Add profile credentials to ~/.aws/credentials 
+        id: add-profile-credentials
+        run: |
+          aws configure set aws_access_key_id ${{ env.AWS_ACCESS_KEY_ID }} --profile admin
+          aws configure set aws_secret_access_key ${{ env.AWS_SECRET_ACCESS_KEY }} --profile admin
+          aws configure set aws_session_token ${{ env.AWS_SESSION_TOKEN }} --profile admin
+        env:
+            AWS_ACCESS_KEY_ID: ${{ steps.configure-aws-credentials.outputs.aws-access-key-id }}
+            AWS_SECRET_ACCESS_KEY: ${{ steps.configure-aws-credentials.outputs.aws-secret-access-key }}
+            AWS_SESSION_TOKEN: ${{ steps.configure-aws-credentials.outputs.aws-session-token }}
+
+      # Download Terraform Artifacts
+      - name: Download terraform artifacts
+        id: download-terraform-artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-artifacts
+          path: ${{ inputs.root_path}} # Destination path so this is available in the working directory for the apply step
+
+      - name: Fix permissions on provider binaries
+        id: fix-permissions
+        run: chmod --recursive +x .terraform
+
+      - name: Set up Terraform
+        id: setup-terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ inputs.root_path}} # Destination path so this is available in the working directory for the apply step
+
+      - name: Terraform apply
+        run: terraform apply -no-color plan
