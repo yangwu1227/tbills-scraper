@@ -90,7 +90,6 @@ jobs:
         run: |
           terraform plan -out=plan -no-color 
           terraform plan -no-color
-        continue-on-error: true
 
       - name: Upload plan as artifact
         id: upload-plan
