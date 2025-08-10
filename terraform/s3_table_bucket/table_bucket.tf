@@ -78,5 +78,32 @@ resource "aws_s3tables_table" "main" {
   encryption_configuration  = local.default_encryption_configuration
   maintenance_configuration = local.default_maintenance_configuration
 
+  metadata {
+    iceberg {
+      schema {
+        field {
+          name     = "date"
+          type     = "date"
+          required = true
+        }
+        field {
+          name     = "maturity"
+          type     = "int"
+          required = true
+        }
+        field {
+          name     = "yield_pct"
+          type     = "float"
+          required = true
+        }
+        field {
+          name     = "scrape_timestamp"
+          type     = "timestamptz"
+          required = true
+        }
+      }
+    }
+  }
+
   depends_on = [aws_s3tables_namespace.main]
 }
