@@ -8,9 +8,24 @@ variable "profile" {
   description = "AWS configuration profile with all required permissions"
 }
 
+variable "account_id" {
+  type        = string
+  description = "AWS account ID where resources will be deployed"
+}
+
 variable "project_prefix" {
   type        = string
   description = "Prefix to use when naming all resources for the project"
+}
+
+variable "terraform_remote_state_bucket" {
+  type        = string
+  description = "S3 bucket name for storing Terraform remote state"
+}
+
+variable "terraform_state_dynamodb_table" {
+  type        = string
+  description = "DynamoDB table name for Terraform state locking"
 }
 
 variable "create_github_oidc_provider" {

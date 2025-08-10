@@ -1,0 +1,60 @@
+# AWS Configuration
+region                                       = "us-east-1"
+profile                                      = "aws-profile"
+table_bucket_name                            = "s3-tables-bucket" # Must be globally unique
+terraform_remote_state_bucket                = "terraform-remote-state-bucket" # Name of the S3 bucket for Terraform state files
+terraform_remote_state_github_actions_s3_key = "key/to/terraform.tfstate" # S3 key for the Terraform remote state of the GitHub Actions role created
+
+# S3 Tables Policy Actions - Complete list of permissions for GitHub Actions
+table_bucket_policy_actions = [
+  # Table bucket management
+  "s3tables:CreateTableBucket",
+  "s3tables:GetTableBucket",
+  "s3tables:DeleteTableBucket",
+  # Namespace management
+  "s3tables:CreateNamespace",
+  "s3tables:GetNamespace",
+  "s3tables:ListNamespaces",
+  "s3tables:DeleteNamespace",
+  # Table management
+  "s3tables:CreateTable",
+  "s3tables:GetTable",
+  "s3tables:ListTables",
+  "s3tables:DeleteTable",
+  "s3tables:RenameTable",
+  # Data operations
+  "s3tables:GetTableMetadataLocation",
+  "s3tables:UpdateTableMetadataLocation",
+  "s3tables:PutTableData",
+  "s3tables:GetTableData",
+  # Policy management
+  "s3tables:PutTableBucketPolicy",
+  "s3tables:GetTableBucketPolicy",
+  "s3tables:DeleteTableBucketPolicy",
+  "s3tables:PutTablePolicy",
+  "s3tables:GetTablePolicy",
+  "s3tables:DeleteTablePolicy",
+  # Maintenance configuration
+  "s3tables:GetTableBucketMaintenanceConfiguration",
+  "s3tables:PutTableBucketMaintenanceConfiguration",
+  "s3tables:GetTableMaintenanceConfiguration",
+  "s3tables:PutTableMaintenanceConfiguration",
+  # Encryption configuration
+  "s3tables:GetTableBucketEncryption",
+  "s3tables:PutTableBucketEncryption",
+  "s3tables:GetTableEncryption",
+  "s3tables:PutTableEncryption"
+]
+
+# Table Configuration
+namespace         = "namespace" # Lowercase letters, numbers, underscores only
+table_name        = "table"     # Lowercase letters, numbers, underscores only
+enable_encryption = true
+kms_key_arn       = null # If null, then AES256, or provide KMS key ARN
+
+# Maintenance Configuration
+enable_compaction          = true # Enable automatic file compaction
+target_file_size_mb        = 128  # Target file size in MB (64-512)
+enable_snapshot_management = true # Enable automatic snapshot cleanup
+min_snapshots_to_keep      = 3    # Minimum snapshots to retain (>=1)
+max_snapshot_age_hours     = 168  # Max age before deletion in hours (7 days)

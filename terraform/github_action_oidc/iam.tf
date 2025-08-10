@@ -48,3 +48,53 @@ resource "aws_iam_role" "github_actions_role" {
   }
   depends_on = [aws_iam_openid_connect_provider.github_oidc_provider]
 }
+
+resource "aws_iam_policy" "github_actions_policy" {
+  name = "${var.project_prefix}_github_actions_policy"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        # See required permissions: https://developer.hashicorp.com/terraform/language/backend/s3
+        Action = [
+          # For terraform remote state management
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject",
+        ],
+        Resource = [
+          "arn:aws:s3:::${var.terraform_remote_state_bucket}",
+          "arn:aws:s3:::${var.terraform_remote_state_bucket}/*"
+        ]
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          # For global state locking
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable"
+        ],
+        Resource = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${var.terraform_state_dynamodb_table}"
+      },
+    ]
+  })
+  tags = {
+    Name = "${var.project_prefix}_iam_github_actions_policy"
+  }
+}
+
+resource "aws_iam_policy_attachment" "github_actions_policy_attachment" {
+  name       = "${var.project_prefix}_github_actions_policy_attachment"
+  roles      = [aws_iam_role.github_actions_role.name]
+  policy_arn = aws_iam_policy.github_actions_policy.arn
+}
+
+resource "aws_iam_policy_attachment" "github_actions_managed_policy_attachment" {
+  name  = "${var.project_prefix}_github_actions_managed_policy_attachment"
+  roles = [aws_iam_role.github_actions_role.name]
+  # We set table bucket policy allowed actions to limit this, but set this on the github actions side for simplicity
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3TablesFullAccess"
+}
