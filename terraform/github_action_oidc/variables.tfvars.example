@@ -1,7 +1,10 @@
-region                      = "us-east-1"
-profile                     = "aws-profile"
-project_prefix              = "project-name"
-create_github_oidc_provider = false
-existing_oidc_provider_arn  = "arn:aws:iam::AWS-ACCOUNT-ID:oidc-provider/token.actions.githubusercontent.com"
-github_username             = "github-username"
-github_repo_name            = "repository-name"
+region                         = "us-east-1"
+profile                        = "aws-profile"
+account_id                     = "aws-account-id"
+project_prefix                 = "project-name"
+terraform_remote_state_bucket  = "terraform-state-bucket"
+terraform_state_dynamodb_table = "terraform-state-lock-table"
+create_github_oidc_provider    = false
+existing_oidc_provider_arn     = "arn:aws:iam::AWS-ACCOUNT-ID:oidc-provider/token.actions.githubusercontent.com"
+github_username                = "github-username"
+github_repo_name               = "repository-name"
