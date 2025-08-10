@@ -97,7 +97,7 @@ variable "namespace" {
 variable "table_name" {
   description = "Name of the table to create"
   type        = string
-  default     = "tbills_yields"
+  default     = "daily_yields"
 
   validation {
     condition = (

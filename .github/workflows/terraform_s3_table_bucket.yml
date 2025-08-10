@@ -5,14 +5,14 @@ on:
     branches:
       - main
     paths:
-      - 'terraform/s3_table/**'
+      - 'terraform/s3_table_bucket/**'
       - '.github/workflows/terraform_s3_table_bucket.yml'
       - '.github/workflows/terraform_validate_plan_apply.yml'
   push:
     branches:
       - main
     paths:
-      - 'terraform/s3_table/**'
+      - 'terraform/s3_table_bucket/**'
       - '.github/workflows/terraform_s3_table_bucket.yml'
       - '.github/workflows/terraform_validate_plan_apply.yml'
 
@@ -20,5 +20,5 @@ jobs:
   s3_table_bucket:
     uses: ./.github/workflows/terraform_validate_plan_apply.yml
     with:
-      root_path: 'terraform/s3_table'
+      root_path: 'terraform/s3_table_bucket'
     secrets: inherit
