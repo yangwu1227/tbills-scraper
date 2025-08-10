@@ -68,7 +68,7 @@ jobs:
 
       - name: Terraform init
         id: terraform-init
-        run: terraform init -no-color
+        run: terraform init -no-color -backend-config=backend.hcl
 
       - name: Upload Terraform artifacts
         id: upload-terraform-artifacts
