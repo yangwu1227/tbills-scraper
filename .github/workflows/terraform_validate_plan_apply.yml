@@ -88,7 +88,7 @@ jobs:
       - name: Terraform plan
         id: terraform-plan
         run: |
-          terraform plan -out=plan -no-color -var-file=variables.tfvars
+          terraform plan -out=plan -no-color -input=false -lock-timeout=5m
 
       - name: Upload plan as artifact
         id: upload-plan
@@ -221,4 +221,4 @@ jobs:
           path: ${{ inputs.root_path}} # Destination path so this is available in the working directory for the apply step
 
       - name: Terraform apply
-        run: terraform apply -no-color -var-file=variables.tfvars plan
+        run: terraform apply -no-color -input=false -lock-timeout=5m plan
