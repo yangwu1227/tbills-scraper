@@ -1,0 +1,79 @@
+[project]
+name = "tbills-scraper"
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "awswrangler>=3.10.1",
+    "beautifulsoup4>=4.13.4",
+    "boto3>=1.40.6",
+    "loguru>=0.7.3",
+    "lxml>=6.0.0",
+    "numpy>=2.3.1",
+    "pandas>=2.3.1",
+    "plotly>=6.2.0",
+    "polars>=1.31.0",
+    "pyarrow>=20.0.0",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "requests>=2.32.4",
+    "scipy>=1.16.0",
+    "shiny>=1.4.0",
+    "shinylive>=0.8.3",
+    "shinywidgets>=0.6.2",
+    "sympy>=1.14.0",
+]
+
+[dependency-groups]
+ipykernel = [
+    "nbformat>=5.10.4",
+]
+lint-fmt = [
+    "mypy>=1.17.0",
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.3",
+]
+notebook = [
+    "ipykernel>=6.29.5",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+extend-exclude = [
+    ".ipynb_checkpoints",
+    ".pyenv",
+    ".pytest_cache",
+    ".vscode",
+    "build",
+    "site-packages",
+]
+force-exclude = true
+line-length = 88
+indent-width = 4
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "I",
+    "F401",
+]
+
+[tool.mypy]
+python_version = 3.12
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+disallow_untyped_calls = true
+explicit_package_bases = true
+disable_error_code = [
+    "import-untyped",
+    "import-not-found",
+]
+plugins = ['pydantic.mypy']
