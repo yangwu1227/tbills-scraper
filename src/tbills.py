@@ -49,7 +49,7 @@ class AWSSettings(BaseSettings):
         S3 uri for Athena query results (must start with `s3://`).
         Env var: `ATHENA_OUTPUT_S3`.
     catalog : str
-        Data catalog name (e.g., `s3tablescatalog/s3-table-bucket`).
+        Data catalog name (`s3tablescatalog`, or `s3tablescatalog/<namespace>`, or `AwsDataCatalog`).
         Env var: `CATALOG`.
     database : str
         Database/namespace within the catalog. Env var: `DATABASE`.
@@ -120,13 +120,19 @@ class AWSSettings(BaseSettings):
         Raises
         ------
         ValueError
-            If the catalog string is not `AwsDataCatalog` and does not contain a slash
+            If the catalog string is not one of the supported values.
         """
-        if ("/" not in v) and (v.lower() != "awsdatacatalog"):
-            raise ValueError(
-                "ATHENA_CATALOG should look like 's3tablescatalog/<s3-table-bucket-name>' or 'AwsDataCatalog'"
-            )
-        return v
+        v_stripped: str = v.strip()
+        v_lower: str = v_stripped.lower()
+        if v_lower == "awsdatacatalog" or v_lower == "s3tablescatalog":
+            return v_stripped
+        if v_lower.startswith("s3tablescatalog/"):
+            name_spaces: str = v_stripped.split("/", 1)[1]
+            if name_spaces and match(r"^[A-Za-z0-9_-]+$", name_spaces):
+                return v_stripped
+        raise ValueError(
+            "CATALOG must be 'AwsDataCatalog', 's3tablescatalog', or 's3tablescatalog/<namespace>'."
+        )
 
     @field_validator("database", "table_name")
     @classmethod
@@ -174,7 +180,11 @@ class TreasuryBillScraper(object):
         Boto3 session bound to `settings.aws_region`.
     """
 
-    def __init__(self, settings: Optional[AWSSettings] = None) -> None:
+    def __init__(
+        self,
+        settings: Optional[AWSSettings] = None,
+        boto3_session: Optional[boto3.session.Session] = None,
+    ) -> None:
         """
         Initialize the scraper with validated settings.
 
@@ -182,6 +192,8 @@ class TreasuryBillScraper(object):
         ----------
         settings : Optional[AWSSettings]
             Injected settings instance. If not provided, a fresh `AWSSettings` is created.
+        boto3_session : Optional[boto3.session.Session]
+            Injected Boto3 session. If not provided, a new session is created.
 
         Returns
         -------
@@ -189,7 +201,7 @@ class TreasuryBillScraper(object):
         """
         self.settings: AWSSettings = settings or AWSSettings()
         self.table_name: str = self.settings.table_name
-        self.boto3_session: boto3.session.Session = boto3.Session(
+        self.boto3_session: boto3.session.Session = boto3_session or boto3.Session(
             region_name=self.settings.aws_region
         )
 
@@ -208,8 +220,8 @@ class TreasuryBillScraper(object):
         requests.HTTPError
             If the HTTP request failed.
         """
-        year_month = datetime.now().strftime("%Y%m")
-        url = (
+        year_month: str = datetime.now().strftime("%Y%m")
+        url: str = (
             "https://home.treasury.gov/"
             "resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/"
             f"all/{year_month}"
@@ -218,10 +230,10 @@ class TreasuryBillScraper(object):
         )
 
         logger.info(f"Fetching data from {url}")
-        response = requests.get(url, timeout=30)
+        response: requests.Response = requests.get(url, timeout=30)
         response.raise_for_status()
 
-        data = (
+        data: pl.DataFrame = (
             pl.scan_csv(
                 io.BytesIO(response.content),
             )
@@ -353,6 +365,7 @@ class TreasuryBillScraper(object):
             sql=query,
             database=self.settings.database,
             workgroup=self.settings.athena_workgroup,
+            s3_output=self.settings.athena_output_s3,
             data_source=self.settings.catalog,
             ctas_approach=False,
             boto3_session=self.boto3_session,
@@ -408,6 +421,9 @@ class TreasuryBillScraper(object):
 
         values_clause: str = self._values_clause(rows)
 
+        # Use a two-part identifier when `data_source` is provided
+        table_identifier: str = f'"{self.settings.database}"."{self.table_name}"'
+
         to_insert_count_query: str = f"""
             SELECT 
                 COUNT(*) AS count
@@ -416,7 +432,7 @@ class TreasuryBillScraper(object):
                     {values_clause}
                 ) AS source(date, maturity, yield_pct, scrape_timestamp)
             LEFT JOIN 
-                "{self.settings.catalog}"."{self.settings.database}"."{self.table_name}" AS target
+                {table_identifier} AS target
             ON
                 1 = 1
                 AND target.date = source.date
@@ -433,7 +449,7 @@ class TreasuryBillScraper(object):
                     {values_clause}
                 ) AS source(date, maturity, yield_pct, scrape_timestamp)
             INNER JOIN 
-                "{self.settings.catalog}"."{self.settings.database}"."{self.table_name}" AS target
+                {table_identifier} AS target
             ON 
                 1 = 1
                 AND target.date = source.date
@@ -450,7 +466,7 @@ class TreasuryBillScraper(object):
 
         upsert_query: str = f"""
             MERGE INTO 
-                "{self.settings.catalog}"."{self.settings.database}"."{self.table_name}" AS target
+                {table_identifier} AS target
             USING 
                 (VALUES
                     {values_clause}

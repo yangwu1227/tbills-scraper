@@ -13,6 +13,7 @@ def main() -> int:
     aws_settings: AWSSettings = AWSSettings()
     tbills_scraper: TreasuryBillScraper = TreasuryBillScraper(settings=aws_settings)
     data: pl.DataFrame = tbills_scraper.scrape_treasury_data()
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
     logger.info("Saving scraped data to local app data directory")
     data.select(["maturity", "yield_pct"]).write_csv(APP_DATA_DIR / "daily_yields.csv")
     _: Stats = tbills_scraper.upsert_data(data)

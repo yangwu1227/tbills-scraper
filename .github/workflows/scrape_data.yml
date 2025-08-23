@@ -1,0 +1,114 @@
+name: Scrape Treasury Bills Data
+
+on:
+  schedule:
+    - cron: '0 18 * * 1-5'  # Run at 6 PM UTC, Monday to Friday (weekdays)
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/tbills.py'
+      - 'main.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/scrape_data.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/tbills.py'
+      - 'main.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/scrape_data.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write # Required for requesting the Json Web Token (JWT)
+  contents: write  # Required for actions/checkout and git commits
+
+jobs:
+  scrape:
+    name: Scrape US Treasury Bills Data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        id: checkout-repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials from OIDC
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          audience: sts.amazonaws.com
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-session-name: daily-scrape-session
+          output-credentials: true
+
+      - name: Add profile credentials to ~/.aws/credentials 
+        id: add-profile-credentials
+        run: |
+          aws configure set aws_access_key_id ${{ env.AWS_ACCESS_KEY_ID }} --profile admin
+          aws configure set aws_secret_access_key ${{ env.AWS_SECRET_ACCESS_KEY }} --profile admin
+          aws configure set aws_session_token ${{ env.AWS_SESSION_TOKEN }} --profile admin
+        env:
+            AWS_ACCESS_KEY_ID: ${{ steps.configure-aws-credentials.outputs.aws-access-key-id }}
+            AWS_SECRET_ACCESS_KEY: ${{ steps.configure-aws-credentials.outputs.aws-secret-access-key }}
+            AWS_SESSION_TOKEN: ${{ steps.configure-aws-credentials.outputs.aws-session-token }}
+
+      - name: Setup python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+            python-version: '3.12' 
+
+      - name: Setup uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@v6
+        with:
+            version: "0.8.9"
+
+      - name: Synchronize environment
+        id: uv-sync
+        run: uv sync --locked
+
+      - name: Run scraper
+        id: run-scraper
+        run: uv run python3 main.py
+        env:
+            TABLE_NAME: ${{ secrets.TABLE_NAME }}
+            ATHENA_WORKGROUP: ${{ secrets.ATHENA_WORKGROUP }}
+            ATHENA_OUTPUT_S3: ${{ secrets.ATHENA_OUTPUT_S3 }}
+            CATALOG: ${{ secrets.CATALOG }}
+            DATABASE: ${{ secrets.DATABASE }}
+            AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Slack Notification
+        id: slack-notify
+        if: always() 
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }} 
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}  
+          SLACK_COLOR: ${{ job.status }}                
+          SLACK_TITLE: "Daily US Treasury Yield: ${{ github.workflow }} @ ${{ github.ref_name }}"
+          SLACK_MESSAGE_ON_SUCCESS: "✅ Scrape completed for `${{ github.ref_name }}` — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SLACK_MESSAGE_ON_FAILURE: "❌ Scrape FAILED for `${{ github.ref_name }}` — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SLACK_MESSAGE_ON_CANCEL:  "⚠️ Scrape CANCELLED for `${{ github.ref_name }}` — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SLACK_USERNAME: "gh-bot"
+          SLACK_ICON_EMOJI: ":robot_face:"
+          SLACKIFY_MARKDOWN: "true"
+      
+      - name: Commit data
+        id: commit-data
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "scraper: saved data to s3 table bucket $(date +'%Y-%m-%d %H:%M:%S')"
+          file_pattern: "app/data/**"
+          disable_globbing: true
+          branch: main
