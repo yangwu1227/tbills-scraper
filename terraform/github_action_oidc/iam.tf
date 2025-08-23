@@ -65,7 +65,9 @@ resource "aws_iam_policy" "github_actions_policy" {
         ],
         Resource = [
           "arn:aws:s3:::${var.terraform_remote_state_bucket}",
-          "arn:aws:s3:::${var.terraform_remote_state_bucket}/*"
+          "arn:aws:s3:::${var.terraform_remote_state_bucket}/*",
+          "arn:aws:s3:::athena-s3-table-bucket-query-results",
+          "arn:aws:s3:::athena-s3-table-bucket-query-results/*"
         ]
       },
       {
@@ -79,6 +81,24 @@ resource "aws_iam_policy" "github_actions_policy" {
         ],
         Resource = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${var.terraform_state_dynamodb_table}"
       },
+      {
+        Effect = "Allow",
+        Action = [
+          # Read-only glue APIs used by athena
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetTableVersion",
+          "glue:GetTableVersions",
+          "glue:GetPartition",
+          "glue:GetPartitions",
+          # Lake formation data access check
+          "lakeformation:GetDataAccess",
+          "lakeformation:ListPermissions"
+        ],
+        Resource = "*"
+      }
     ]
   })
   tags = {
@@ -86,15 +106,18 @@ resource "aws_iam_policy" "github_actions_policy" {
   }
 }
 
-resource "aws_iam_policy_attachment" "github_actions_policy_attachment" {
-  name       = "${var.project_prefix}_github_actions_policy_attachment"
-  roles      = [aws_iam_role.github_actions_role.name]
+resource "aws_iam_role_policy_attachment" "github_actions_policy_attachment" {
+  role       = aws_iam_role.github_actions_role.name
   policy_arn = aws_iam_policy.github_actions_policy.arn
 }
 
-resource "aws_iam_policy_attachment" "github_actions_managed_policy_attachment" {
-  name  = "${var.project_prefix}_github_actions_managed_policy_attachment"
-  roles = [aws_iam_role.github_actions_role.name]
+resource "aws_iam_role_policy_attachment" "github_actions_s3_tables_policy_attachment" {
+  role = aws_iam_role.github_actions_role.name
   # We set table bucket policy allowed actions to limit this, but set this on the github actions side for simplicity
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3TablesFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_athena_policy_attachment" {
+  role       = aws_iam_role.github_actions_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
 }
