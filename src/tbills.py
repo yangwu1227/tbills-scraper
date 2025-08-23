@@ -25,7 +25,8 @@ import polars.selectors as cs
 import requests
 import sympy as sp
 from loguru import logger
-from pydantic import Field, FieldValidationInfo, field_validator
+from pydantic import Field, field_validator
+from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LOWER_NUM_HYPHEN: Final[Pattern[str]] = re_compile(r"^[a-z0-9-]+$")
@@ -185,7 +186,7 @@ class AWSSettings(BaseSettings):
 
     @field_validator("database", "table_name")
     @classmethod
-    def _validate_identifiers(cls, v: str, info: FieldValidationInfo) -> str:
+    def _validate_identifiers(cls, v: str, info: ValidationInfo) -> str:
         """
         Validate identifiers for database and table names; when using `s3tablescatalog`,
         the namespace within the S3 table bucket becomes the database.
@@ -196,7 +197,7 @@ class AWSSettings(BaseSettings):
         ----------
         v : str
             Identifier string.
-        info : FieldValidationInfo
+        info : ValidationInfo
             Field validation information; used to determine whether the identifier is for a database or table.
 
         Returns
