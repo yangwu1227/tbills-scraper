@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'app/data/**'
+      - 'app/**'
       - '.github/workflows/deploy_app.yml'
   workflow_dispatch:
 
