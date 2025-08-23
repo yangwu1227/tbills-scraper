@@ -56,9 +56,17 @@ resource "aws_iam_policy" "github_actions_policy" {
     Statement = [
       {
         Effect = "Allow",
+        # See: https://stackoverflow.com/a/69205963/12923148
+        Action = [
+          "s3:GetBucketLocation",
+        ],
+        Resource = "arn:aws:s3:::*"
+      },
+      {
+        Effect = "Allow",
         # See required permissions: https://developer.hashicorp.com/terraform/language/backend/s3
         Action = [
-          # For terraform remote state management
+          # For terraform remote state management and S3 bucket access
           "s3:ListBucket",
           "s3:GetObject",
           "s3:PutObject",
@@ -66,14 +74,14 @@ resource "aws_iam_policy" "github_actions_policy" {
         Resource = [
           "arn:aws:s3:::${var.terraform_remote_state_bucket}",
           "arn:aws:s3:::${var.terraform_remote_state_bucket}/*",
-          "arn:aws:s3:::athena-s3-table-bucket-query-results",
-          "arn:aws:s3:::athena-s3-table-bucket-query-results/*"
+          "arn:aws:s3:::${var.athena_s3_output_bucket}",
+          "arn:aws:s3:::${var.athena_s3_output_bucket}/*"
         ]
       },
       {
         Effect = "Allow",
         Action = [
-          # For global state locking
+          # For global state locking via terraform
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:DeleteItem",
@@ -84,21 +92,41 @@ resource "aws_iam_policy" "github_actions_policy" {
       {
         Effect = "Allow",
         Action = [
-          # Read-only glue APIs used by athena
-          "glue:GetDatabase",
-          "glue:GetDatabases",
-          "glue:GetTable",
-          "glue:GetTables",
-          "glue:GetTableVersion",
-          "glue:GetTableVersions",
-          "glue:GetPartition",
-          "glue:GetPartitions",
-          # Lake formation data access check
-          "lakeformation:GetDataAccess",
-          "lakeformation:ListPermissions"
+          # For querying S3 table via Athena
+          "athena:StartQueryExecution",
+          "athena:StopQueryExecution",
+          "athena:GetQueryExecution",
+          "athena:GetQueryResults",
+          "athena:GetDataCatalog",
+          "athena:GetWorkGroup"
         ],
         Resource = "*"
-      }
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          # Catalog actions
+          "glue:GetCatalog",
+          "glue:GetCatalogs",
+          # Database actions
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          # Table actions
+          "glue:UpdateTable",
+          "glue:GetTable",
+          "glue:GetTables"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          # Principals who read and write data must have lakeformation:GetDataAccess when the underlying data location is registered with Lake Formation
+          # See: https://docs.aws.amazon.com/lake-formation/latest/dg/access-control-underlying-data.html
+          "lakeformation:GetDataAccess",
+        ],
+        Resource = "*"
+      },
     ]
   })
   tags = {
@@ -115,9 +143,4 @@ resource "aws_iam_role_policy_attachment" "github_actions_s3_tables_policy_attac
   role = aws_iam_role.github_actions_role.name
   # We set table bucket policy allowed actions to limit this, but set this on the github actions side for simplicity
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3TablesFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "github_actions_athena_policy_attachment" {
-  role       = aws_iam_role.github_actions_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
 }

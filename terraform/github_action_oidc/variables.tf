@@ -23,6 +23,11 @@ variable "terraform_remote_state_bucket" {
   description = "S3 bucket name for storing Terraform remote state"
 }
 
+variable "athena_s3_output_bucket" {
+  type        = string
+  description = "Athena is used to access tables in S3 table bucket, which requires an S3 output bucket for query results"
+}
+
 variable "terraform_state_dynamodb_table" {
   type        = string
   description = "DynamoDB table name for Terraform state locking"
