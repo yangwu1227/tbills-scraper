@@ -83,7 +83,7 @@ jobs:
             TABLE_NAME: ${{ secrets.TABLE_NAME }}
             ATHENA_WORKGROUP: ${{ secrets.ATHENA_WORKGROUP }}
             ATHENA_OUTPUT_S3: ${{ secrets.ATHENA_OUTPUT_S3 }}
-            CATALOG: ${{ secrets.CATALOG }}
+            SUBCATALOG: ${{ secrets.SUBCATALOG }}
             DATABASE: ${{ secrets.DATABASE }}
             AWS_REGION: ${{ secrets.AWS_REGION }}
 
