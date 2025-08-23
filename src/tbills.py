@@ -1,8 +1,21 @@
 import io
 import math
 from datetime import date, datetime, timezone
-from re import match
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, TypedDict, Union
+from re import Pattern
+from re import compile as re_compile
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Final,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import awswrangler as wr
 import boto3
@@ -12,8 +25,16 @@ import polars.selectors as cs
 import requests
 import sympy as sp
 from loguru import logger
-from pydantic import Field, field_validator
+from pydantic import Field, FieldValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LOWER_NUM_HYPHEN: Final[Pattern[str]] = re_compile(r"^[a-z0-9-]+$")
+START_END_ALNUM_LOWER: Final[Pattern[str]] = re_compile(r"^[a-z0-9].*[a-z0-9]$")
+
+LOWER_NUM_UNDERSCORE: Final[Pattern[str]] = re_compile(r"^[a-z0-9_]+$")
+START_END_ALNUM_LOWER_TABLE_NS: Final[Pattern[str]] = re_compile(
+    r"^[a-z0-9].*[a-z0-9]$"
+)
 
 
 class Stats(TypedDict):
@@ -30,47 +51,44 @@ class AWSSettings(BaseSettings):
     """
     AWS settings loaded from environment variables or a `.env` file. When
     the S3 tables catalog is integrated with Data Catalog and Lake Formation, the
-    AWS Glue service creates a single catalog called `s3tablescatalog`:
+    AWS Glue service creates an account-level container called `s3tablescatalog`:
 
-    - Amazon S3 table buckets become a multi-level catalog in the Data Catalog
-    - The associated Amazon S3 namespace is registered as a database in the Data Catalog
-    - The Amazon S3 tables in the table bucket becomes tables in the Data Catalog
+    - S3 table buckets become a multi-level subcatalogs in the account-level container
+    - The associated namespaces within an S3 table bucket are registered as databases in that data catalog
+    - The tables in a namespace become tables in that database
 
-    This allows us to query S3 tables via Athena.
+    This structure allows us to query S3 tables via Athena.
 
     Attributes
     ----------
-    table_name : str
-        Target Iceberg table name in the S3 table bucket namespace.
-        Env var: `TABLE_NAME`.
+    aws_region : str
+        AWS region name. Env var: `AWS_REGION` (default: `us-east-1`).
     athena_workgroup : str
         Athena workgroup to use. Env var: `ATHENA_WORKGROUP` (default: `primary`).
     athena_output_s3 : str
-        S3 uri for Athena query results (must start with `s3://`).
-        Env var: `ATHENA_OUTPUT_S3`.
-    catalog : str
-        Data catalog name (`s3tablescatalog`, or `s3tablescatalog/<namespace>`, or `AwsDataCatalog`).
-        Env var: `CATALOG`.
+        S3 uri for Athena query results (must start with `s3://`). Env var: `ATHENA_OUTPUT_S3`.
+    subcatalog : str
+        Subcatalog name (e.g. `s3-table-bucket-name`). Env var: `SUBCATALOG`.
     database : str
-        Database/namespace within the catalog. Env var: `DATABASE`.
-    aws_region : str
-        AWS region name. Env var: `AWS_REGION` (default: `us-east-1`).
+        Database within the catalog (e.g. `namespace`). Env var: `DATABASE`.
+    table_name : str
+        Target Iceberg table name in the S3 table bucket namespace. Env var: `TABLE_NAME`.
 
     Notes
     -----
-    Settings are read from environment and optionally a `.env` file in the current working directory.
+    Settings are read from the runtime environment and optionally a `.env` file in the current working directory.
     """
 
-    table_name: str = Field(..., validation_alias="TABLE_NAME")
+    aws_region: str = Field(default="us-east-1", validation_alias="AWS_REGION")
     athena_workgroup: str = Field(
         default="primary", validation_alias="ATHENA_WORKGROUP"
     )
     athena_output_s3: str = Field(..., validation_alias="ATHENA_OUTPUT_S3")
-    catalog: str = Field(..., validation_alias="CATALOG")
+    subcatalog: str = Field(..., validation_alias="SUBCATALOG")
     database: str = Field(..., validation_alias="DATABASE")
-    aws_region: str = Field(default="us-east-1", validation_alias="AWS_REGION")
+    table_name: str = Field(..., validation_alias="TABLE_NAME")
 
-    model_config = SettingsConfigDict(
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="forbid",
@@ -101,49 +119,85 @@ class AWSSettings(BaseSettings):
             raise ValueError("ATHENA_OUTPUT_S3 must start with 's3://'")
         return v if v.endswith("/") else v + "/"
 
-    @field_validator("catalog")
+    @field_validator("subcatalog")
     @classmethod
     def _validate_catalog(cls, v: str) -> str:
         """
-        Validate the catalog identifier.
+        Validate the subcatalog identifier; when using `s3tablescatalog`, the
+        name of the S3 table bucket is used as the subcatalog name.
+
+        See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-buckets-naming.html#table-buckets-naming-rules
 
         Parameters
         ----------
         v : str
-            Catalog identifier.
+            Subcatalog identifier.
 
         Returns
         -------
         str
-            The provided catalog string if valid.
+            The provided subcatalog string if valid.
 
         Raises
         ------
         ValueError
-            If the catalog string is not one of the supported values.
+            If the subcatalog string is not one of the supported values.
         """
-        v_stripped: str = v.strip()
-        v_lower: str = v_stripped.lower()
-        if v_lower == "awsdatacatalog" or v_lower == "s3tablescatalog":
-            return v_stripped
-        if v_lower.startswith("s3tablescatalog/"):
-            name_spaces: str = v_stripped.split("/", 1)[1]
-            if name_spaces and match(r"^[A-Za-z0-9_-]+$", name_spaces):
-                return v_stripped
-        raise ValueError(
-            "CATALOG must be 'AwsDataCatalog', 's3tablescatalog', or 's3tablescatalog/<namespace>'."
+        name: str = v.strip()
+        if not (3 <= len(name) <= 63):
+            raise ValueError(
+                "Subcatalog (bucket) name must be between 3 and 63 characters"
+            )
+        if LOWER_NUM_HYPHEN.fullmatch(name) is None:
+            raise ValueError(
+                "Subcatalog (bucket) name must contain only lowercase letters, numbers, and hyphens (-)"
+            )
+        if START_END_ALNUM_LOWER.fullmatch(name) is None:
+            raise ValueError(
+                "Subcatalog (bucket) name must begin and end with a letter or number"
+            )
+        if "_" in name or "." in name:
+            raise ValueError(
+                "Subcatalog (bucket) name must not contain underscores (_) or periods (.)"
+            )
+        reserved_prefixes: Final[Tuple[str, ...]] = (
+            "xn--",
+            "sthree-",
+            "amzn-s3-demo-",
+            "aws",
         )
+        reserved_suffixes: Final[Tuple[str, ...]] = (
+            "-s3alias",
+            "--ol-s3",
+            "--x-s3",
+            "--table-s3",
+        )
+
+        if any(name.startswith(prefix) for prefix in reserved_prefixes):
+            raise ValueError(
+                f"Subcatalog (bucket) name must not start with any reserved prefix: {reserved_prefixes}"
+            )
+        if any(name.endswith(suffix) for suffix in reserved_suffixes):
+            raise ValueError(
+                f"Subcatalog (bucket) name must not end with any reserved suffix: {reserved_suffixes}"
+            )
+        return name
 
     @field_validator("database", "table_name")
     @classmethod
-    def _validate_identifiers(cls, v: str) -> str:
+    def _validate_identifiers(cls, v: str, info: FieldValidationInfo) -> str:
         """
-        Lightly validate identifiers for database and table names.
+        Validate identifiers for database and table names; when using `s3tablescatalog`,
+        the namespace within the S3 table bucket becomes the database.
+
+        See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-buckets-naming.html#naming-rules-table
 
         Parameters
         ----------
         v : str
             Identifier string.
+        info : FieldValidationInfo
+            Field validation information; used to determine whether the identifier is for a database or table.
 
         Returns
         -------
@@ -153,17 +207,36 @@ class AWSSettings(BaseSettings):
         Raises
         ------
         ValueError
-            If the identifier contains characters outside `[a-zA-Z0-9_]`.
+            If the identifier is not valid.
         """
-        if not match(r"^[a-zA-Z0-9_]+$", v):
-            raise ValueError(f"Identifier contains invalid chars: {v!r}")
-        return v
+        name: str = v.strip()
+        if not (1 <= len(name) <= 255):
+            raise ValueError(f"{info.field_name} must be between 1 and 255 characters")
+        if LOWER_NUM_UNDERSCORE.fullmatch(name) is None:
+            raise ValueError(
+                f"{info.field_name} must contain only lowercase letters, numbers, and underscores (_)"
+            )
+        if START_END_ALNUM_LOWER.fullmatch(name) is None:
+            raise ValueError(
+                f"{info.field_name} must begin and end with a letter or number"
+            )
+        if "-" in name or "." in name:
+            raise ValueError(
+                f"{info.field_name} must not contain hyphens (-) or periods (.)"
+            )
+        # Field-specific rule for namespace (database)
+        if info.field_name == "database" and name.startswith("aws"):
+            raise ValueError(
+                "database (namespace) must not start with the reserved prefix 'aws'"
+            )
+
+        return name
 
 
 class TreasuryBillScraper(object):
     """
     Scraper that upserts Treasury bill yields into an Iceberg table
-    in Amazon S3 Tables via Athena (engine v3) using `awswrangler`.
+    in S3 tables bucket via Athena (engine v3) using `awswrangler`.
 
     Parameters
     ----------
@@ -200,14 +273,13 @@ class TreasuryBillScraper(object):
         None
         """
         self.settings: AWSSettings = settings or AWSSettings()
-        self.table_name: str = self.settings.table_name
         self.boto3_session: boto3.session.Session = boto3_session or boto3.Session(
             region_name=self.settings.aws_region
         )
 
     def scrape_treasury_data(self) -> pl.DataFrame:
         """
-        Fetch the latest treasury daily treasury bill bond-equivalent yields.
+        Fetch the latest treasury daily bill bond-equivalent yields.
 
         Returns
         -------
@@ -265,7 +337,9 @@ class TreasuryBillScraper(object):
     @staticmethod
     def _format_python_value(value: Any) -> str:
         """
-        Format a Python value as a SQL literal.
+        Format a Python value as a SQL literal. Only
+        `datetime`, `date`, `float`, `int`, and `None`
+        are supported.
 
         Parameters
         ----------
@@ -299,17 +373,17 @@ class TreasuryBillScraper(object):
     @classmethod
     def _values_clause(cls, rows: Iterable[Tuple[date, int, float, datetime]]) -> str:
         """
-        Build a VALUES clause for from typed row tuples.
+        Build a VALUES clause from typed row tuples.
 
         Parameters
         ----------
-        rows : Iterable[tuple[datetime.date, int, float, datetime]]
+        rows : Iterable[Tuple[datetime.date, int, float, datetime]]
             Iterable of rows in the order: (date, maturity, yield_pct, scrape_timestamp).
 
         Returns
         -------
         str
-            Comma-separated VALUES list suitable for inline `USING (VALUES ...)`.
+            Comma-separated VALUES list suitable for sql clause `USING (VALUES ...)`.
         """
         parts: List[str] = []
         for d, m, y, ts in rows:
@@ -340,7 +414,7 @@ class TreasuryBillScraper(object):
             database=self.settings.database,
             s3_output=self.settings.athena_output_s3,
             workgroup=self.settings.athena_workgroup,
-            data_source=self.settings.catalog,
+            data_source=f"s3tablescatalog/{self.settings.subcatalog}",
             boto3_session=self.boto3_session,
             wait=False,
         )
@@ -366,7 +440,7 @@ class TreasuryBillScraper(object):
             database=self.settings.database,
             workgroup=self.settings.athena_workgroup,
             s3_output=self.settings.athena_output_s3,
-            data_source=self.settings.catalog,
+            data_source=f"s3tablescatalog/{self.settings.subcatalog}",
             ctas_approach=False,
             boto3_session=self.boto3_session,
         )
@@ -421,8 +495,10 @@ class TreasuryBillScraper(object):
 
         values_clause: str = self._values_clause(rows)
 
-        # Use a two-part identifier when `data_source` is provided
-        table_identifier: str = f'"{self.settings.database}"."{self.table_name}"'
+        # Use a two-part identifier when `data_source` is already provided as `s3tablescatalog/<subcatalog>`
+        qualified_table_name: str = (
+            f'"{self.settings.database}"."{self.settings.table_name}"'
+        )
 
         to_insert_count_query: str = f"""
             SELECT 
@@ -432,7 +508,7 @@ class TreasuryBillScraper(object):
                     {values_clause}
                 ) AS source(date, maturity, yield_pct, scrape_timestamp)
             LEFT JOIN 
-                {table_identifier} AS target
+                {qualified_table_name} AS target
             ON
                 1 = 1
                 AND target.date = source.date
@@ -449,7 +525,7 @@ class TreasuryBillScraper(object):
                     {values_clause}
                 ) AS source(date, maturity, yield_pct, scrape_timestamp)
             INNER JOIN 
-                {table_identifier} AS target
+                {qualified_table_name} AS target
             ON 
                 1 = 1
                 AND target.date = source.date
@@ -466,7 +542,7 @@ class TreasuryBillScraper(object):
 
         upsert_query: str = f"""
             MERGE INTO 
-                {table_identifier} AS target
+                {qualified_table_name} AS target
             USING 
                 (VALUES
                     {values_clause}
@@ -490,7 +566,7 @@ class TreasuryBillScraper(object):
 
 class TreasuryBillAnalytics(object):
     """
-    Analytics for Treasury-bill roll-vs-roll decisions under an integer-roll
+    Analytics for Treasury bill roll-vs-roll decisions under an integer-roll
     plus self-consistent stub convention.
 
     The class compares a "short" tenor (rolled at an unknown break-even
@@ -515,15 +591,23 @@ class TreasuryBillAnalytics(object):
     Attributes
     ----------
     data : pl.DataFrame
-        Input table.
+        Input treasury bill data table containing maturity and yield information.
     cey_by_weeks : Dict[int, float]
         Mapping from tenor in weeks to CEY as a decimal (e.g., 0.0432).
     available_tenors_weeks : List[int]
         Sorted list of available tenors (weeks).
+    day_count_base : int
+        Day-count base for CEY scaling calculations.
+    days_per_week : int
+        Days per week for tenor conversion calculations.
     """
 
-    _y: sp.Symbol = sp.symbols("y", real=True)  # Unknown break-even CEY (decimal)
-    _dc: sp.Symbol = sp.symbols("dc", positive=True)  # Day-count base (symbolic)
+    _y: ClassVar[sp.Symbol] = sp.symbols(
+        "y", real=True
+    )  # Unknown break-even CEY (decimal)
+    _dc: ClassVar[sp.Symbol] = sp.symbols(
+        "dc", positive=True
+    )  # Day-count base (symbolic)
 
     def __init__(
         self,
