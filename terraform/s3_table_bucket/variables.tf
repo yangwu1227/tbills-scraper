@@ -109,7 +109,7 @@ variable "table_name" {
   }
 }
 
-# Maintenance configuration variables
+# Table-level maintenance configuration variables
 variable "enable_compaction" {
   description = "Whether to enable automatic compaction"
   type        = bool
@@ -140,7 +140,7 @@ variable "min_snapshots_to_keep" {
 
   validation {
     condition     = var.min_snapshots_to_keep >= 1
-    error_message = "Must keep at least 1 snapshot"
+    error_message = "Minimum snapshots to keep must be at least 1"
   }
 }
 
@@ -150,12 +150,12 @@ variable "max_snapshot_age_hours" {
   default     = 168 # 7 days
 
   validation {
-    condition     = var.max_snapshot_age_hours > 0
+    condition     = var.max_snapshot_age_hours >= 1
     error_message = "Maximum snapshot age must be at least 1 hour"
   }
 }
 
-# Encryption variables
+# Table-level encryption variables
 variable "enable_encryption" {
   description = "Whether to enable encryption for the table"
   type        = bool
@@ -167,4 +167,33 @@ variable "kms_key_arn" {
   type        = string
   default     = null
   sensitive   = true
+}
+
+# Bucket-level maintenance configuration variables
+variable "enable_unreferenced_file_removal" {
+  description = "Whether to enable unreferenced file removal at the bucket level"
+  type        = bool
+  default     = true
+}
+
+variable "unreferenced_days" {
+  description = "Number of days after which unreferenced objects are marked for deletion"
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.unreferenced_days >= 1
+    error_message = "Unreferenced days must be at least 1"
+  }
+}
+
+variable "non_current_days" {
+  description = "Number of days after which non-current objects are permanently deleted"
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.non_current_days >= 1
+    error_message = "Non-current days must be at least 1"
+  }
 }

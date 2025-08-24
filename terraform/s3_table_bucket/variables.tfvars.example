@@ -49,12 +49,19 @@ table_bucket_policy_actions = [
 # Table Configuration
 namespace         = "namespace" # Lowercase letters, numbers, underscores only
 table_name        = "table"     # Lowercase letters, numbers, underscores only
+
+# Table-level encryption configuration
 enable_encryption = true
 kms_key_arn       = null # If null, then AES256, or provide KMS key ARN
 
-# Maintenance Configuration
+# Table-level maintenance configuration
 enable_compaction          = true # Enable automatic file compaction
 target_file_size_mb        = 128  # Target file size in MB (64-512)
 enable_snapshot_management = true # Enable automatic snapshot cleanup
 min_snapshots_to_keep      = 3    # Minimum snapshots to retain (>=1)
 max_snapshot_age_hours     = 168  # Max age before deletion in hours (7 days)
+
+# Bucket-level maintenance configuration
+enable_unreferenced_file_removal   = true
+unreferenced_days                  = 3  
+non_current_days                   = 10 
