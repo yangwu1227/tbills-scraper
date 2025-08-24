@@ -81,17 +81,6 @@ resource "aws_iam_policy" "github_actions_policy" {
       {
         Effect = "Allow",
         Action = [
-          # For global state locking via terraform
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:DescribeTable"
-        ],
-        Resource = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${var.terraform_state_dynamodb_table}"
-      },
-      {
-        Effect = "Allow",
-        Action = [
           # For querying S3 table via Athena
           "athena:StartQueryExecution",
           "athena:StopQueryExecution",
