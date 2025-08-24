@@ -33,6 +33,7 @@ variable "table_bucket_name" {
   }
 }
 
+# See https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-setting-up.html#s3-tables-actions
 variable "table_bucket_policy_actions" {
   description = "List of actions for the table bucket policy - grants all necessary permissions"
   type        = list(string)
@@ -41,6 +42,7 @@ variable "table_bucket_policy_actions" {
     "s3tables:CreateTableBucket",
     "s3tables:GetTableBucket",
     "s3tables:DeleteTableBucket",
+    "s3tables:ListTableBuckets",
     # Namespace management
     "s3tables:CreateNamespace",
     "s3tables:GetNamespace",
@@ -69,9 +71,11 @@ variable "table_bucket_policy_actions" {
     "s3tables:PutTableBucketMaintenanceConfiguration",
     "s3tables:GetTableMaintenanceConfiguration",
     "s3tables:PutTableMaintenanceConfiguration",
+    "s3tables:GetTableMaintenanceJobStatus",
     # Encryption configuration
     "s3tables:GetTableBucketEncryption",
     "s3tables:PutTableBucketEncryption",
+    "s3tables:DeleteTableBucketEncryption",
     "s3tables:GetTableEncryption",
     "s3tables:PutTableEncryption"
   ]

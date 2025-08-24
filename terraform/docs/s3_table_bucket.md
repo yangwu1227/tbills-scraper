@@ -8,7 +8,7 @@ Amazon S3 Tables has three main components:
 
 - [**Namespace**](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-namespace.html): Logical grouping within a table bucket, e.g., all tables related to a specific department could be grouped under a common namespace.
 
-- [**Table**](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-tables.html): A structured dataset that consist of the actual data as well as metadata. All tables in a table bucket are stored using the [Apache Iceberg](https://iceberg.apache.org/docs/latest/) open table format.
+- [**Table**](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-tables.html): A structured dataset that consists of the actual data as well as metadata. All tables in a table bucket are stored using the [Apache Iceberg](https://iceberg.apache.org/docs/latest/) open table format.
 
 **Reference**
 
@@ -164,6 +164,69 @@ The project uses the default encryption with Amazon S3 managed keys (SSE-S3). Th
 
 ---
 
+## Access Management for S3 Table Bucket Resources
+
+S3 Table Buckets use a dual-layer permissions model that combines IAM-based with resource-based guardrails. Both layers must allow an action for it to succeed.
+
+### Dual Permission Requirements
+
+When a request is made to perform an action on S3 Tables resources (e.g., during Terraform apply when the Github Actions IAM role tries to `Create*`, `Put*`, or `Delete*`, etc.), both permission layers are checked:
+
+1. **IAM Permissions**: The IAM principal must have the necessary S3 Tables permissions
+2. **Resource-Level Guardrails**: The action must be explicitly allowed in the table bucket, namespace, or table policy
+
+### Current Implementation in the Project
+
+#### IAM Role Permissions
+
+The Github Actions role uses the AWS managed policy `AmazonS3TablesFullAccess`, which grants:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3tables:*",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+#### Resource-Level Guardrails
+
+The table bucket policy explicitly allows specific actions via the `table_bucket_policy_actions` variable, which currently matches all actions included in the managed policy:
+
+```python
+variable "table_bucket_policy_actions" {
+  description = "List of actions for the table bucket policy - grants all necessary permissions"
+  type        = list(string)
+  default     = [
+    # Table bucket management
+    "s3tables:CreateTableBucket",
+    "s3tables:GetTableBucket",
+    # ...
+  ]
+}
+```
+
+- **Synchronization requirement**: If the `table_bucket_policy_actions` list is modified to be a subset of `s3tables:*`, any removed actions would be blocked even if the IAM role has `AmazonS3TablesFullAccess`.
+
+- **Granular control**: This dual-layer approach enables fine-grained access control. We can restrict specific operations at the resource level while maintaining broad IAM permissions for roles (which may need more permissions elsewhere).
+
+**References**
+
+- [AmazonS3TablesFullAccess managed policy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonS3TablesFullAccess.html)
+
+- [Actions for S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-setting-up.html#s3-tables-actions)
+
+- [IAM identity-based policies for S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-identity-based-policies.html)
+
+- [Resource-based policies for S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-resource-based-policies.html)
+
+---
+
 ## Lake Formation Integration
 
 ### Overview
@@ -223,3 +286,30 @@ The Lake Formation permissions model is a combination of Lake Formation and IAM 
 - [Overview of Lake Formation permissions](https://docs.aws.amazon.com/lake-formation/latest/dg/lf-permissions-overview.html)
 - [GrantPermissions](https://docs.aws.amazon.com/lake-formation/latest/APIReference/API_GrantPermissions.html)
 - [Managing access to a table or database with Lake Formation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/grant-permissions-tables.html)
+
+---
+
+## ⚠️ Critical Distinction
+
+> **IMPORTANT:** There are two different types of permissions required for S3 Tables:
+>
+> ### S3 Tables Resource Management Permissions
+>
+> These control **managing** S3 Tables resources themselves (infrastructure operations):
+>
+> - Creating, getting, deleting S3 table buckets
+> - Creating, getting, deleting namespaces and tables  
+> - Managing resource-level policies
+> - **Configured via:** IAM policies + S3 Tables resource-based policies (dual-layer model)
+> - **Used for:** Terraform operations, infrastructure management
+>
+> ### Lake Formation Data Access Permissions  
+>
+> These control **accessing the underlying data** stored in S3 Tables resources:
+>
+> - Reading/writing actual table data through analytics services (Athena, etc.)
+> - Querying data via the Glue Data Catalog
+> - **Configured via:** IAM policies + Lake Formation permissions (also dual-layer model)
+> - **Used for:** Data analytics, queries, ETL operations
+>
+> **Both permission layers are required but serve completely different purposes.** The GitHub Actions role needs S3 Tables resource management permissions to deploy infrastructure via Terraform, *AND* Lake Formation data access permissions to read/write actual Treasury bill data during scraping.
