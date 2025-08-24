@@ -1,13 +1,13 @@
 # Local values for cleaner code
 locals {
-  # Default encryption configuration
-  default_encryption_configuration = var.enable_encryption ? {
+  # Table-level encryption configuration
+  table_encryption_configuration = var.enable_encryption ? {
     sse_algorithm = var.kms_key_arn != null ? "aws:kms" : "AES256"
     kms_key_arn   = var.kms_key_arn
   } : null
 
-  # Default maintenance configuration
-  default_maintenance_configuration = {
+  # Table-level maintenance configuration  
+  table_maintenance_configuration = {
     iceberg_compaction = {
       status = var.enable_compaction ? "enabled" : "disabled"
       settings = {
@@ -22,11 +22,24 @@ locals {
       }
     }
   }
+
+  # Bucket-level maintenance configuration
+  bucket_maintenance_configuration = {
+    iceberg_unreferenced_file_removal = {
+      status = var.enable_unreferenced_file_removal ? "enabled" : "disabled"
+      settings = {
+        unreferenced_days = var.unreferenced_days
+        non_current_days  = var.non_current_days
+      }
+    }
+  }
 }
 
 # Table bucket
 resource "aws_s3tables_table_bucket" "main" {
   name = var.table_bucket_name
+
+  maintenance_configuration = local.bucket_maintenance_configuration
 }
 
 # Data source for table bucket policy
@@ -75,8 +88,8 @@ resource "aws_s3tables_table" "main" {
   table_bucket_arn = aws_s3tables_table_bucket.main.arn
   format           = "ICEBERG"
 
-  encryption_configuration  = local.default_encryption_configuration
-  maintenance_configuration = local.default_maintenance_configuration
+  encryption_configuration  = local.table_encryption_configuration
+  maintenance_configuration = local.table_maintenance_configuration
 
   metadata {
     iceberg {

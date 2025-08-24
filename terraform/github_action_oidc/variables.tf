@@ -28,11 +28,6 @@ variable "athena_s3_output_bucket" {
   description = "Athena is used to access tables in S3 table bucket, which requires an S3 output bucket for query results"
 }
 
-variable "terraform_state_dynamodb_table" {
-  type        = string
-  description = "DynamoDB table name for Terraform state locking"
-}
-
 variable "create_github_oidc_provider" {
   type        = bool
   description = "Boolean to decide whether to create the OIDC provider or use an existing one"

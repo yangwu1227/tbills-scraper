@@ -70,6 +70,7 @@ resource "aws_iam_policy" "github_actions_policy" {
           "s3:ListBucket",
           "s3:GetObject",
           "s3:PutObject",
+          "s3:DeleteObject",
         ],
         Resource = [
           "arn:aws:s3:::${var.terraform_remote_state_bucket}",
@@ -77,17 +78,6 @@ resource "aws_iam_policy" "github_actions_policy" {
           "arn:aws:s3:::${var.athena_s3_output_bucket}",
           "arn:aws:s3:::${var.athena_s3_output_bucket}/*"
         ]
-      },
-      {
-        Effect = "Allow",
-        Action = [
-          # For global state locking via terraform
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:DescribeTable"
-        ],
-        Resource = "arn:aws:dynamodb:${var.region}:${var.account_id}:table/${var.terraform_state_dynamodb_table}"
       },
       {
         Effect = "Allow",

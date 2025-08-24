@@ -4,7 +4,6 @@ account_id                     = "aws-account-id"
 project_prefix                 = "project-name"
 terraform_remote_state_bucket  = "terraform-state-bucket"
 athena_s3_output_bucket        = "athena-s3-output-bucket"
-terraform_state_dynamodb_table = "terraform-state-lock-table"
 create_github_oidc_provider    = false
 existing_oidc_provider_arn     = "arn:aws:iam::AWS-ACCOUNT-ID:oidc-provider/token.actions.githubusercontent.com"
 github_username                = "github-username"

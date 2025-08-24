@@ -63,6 +63,107 @@ Details of the break-even implied forward yield can be found in `notebooks/break
 
 ---
 
+## Maintenance Configuration
+
+S3 Tables provides two levels of maintenance operations to optimize storage and query performance:
+
+| Maintenance Operation | Level | Property | Default | Range | Terraform Configuration |
+|----------------------|-------|----------|---------|--------|------------------------|
+| **Unreferenced File Removal** | Bucket | `unreferenced_days` | 3 days | 1+ days | ✅ Configured |
+| | | `non_current_days` | 10 days | 1+ days | ✅ Configured |
+| **Compaction** | Table | `target_file_size_mb` | 512MB | 64-512MB | ✅ Configured |
+| **Snapshot Management** | Table | `min_snapshots_to_keep` | 1 | 1+ | ✅ Configured |
+| | | `max_snapshot_age_hours` | 120 hours | 1+ hours | ✅ Configured |
+
+### Table Bucket Level Maintenance
+
+**Unreferenced file removal** automatically cleans up orphaned objects not referenced by any table snapshots. This operates in two phases:
+
+1. Objects older than `unreferenced_days` are marked as noncurrent
+2. Noncurrent objects are permanently deleted after `non_current_days`
+
+The module configures:
+
+```python
+locals {
+  bucket_maintenance_configuration = {
+    iceberg_unreferenced_file_removal = {
+      status = var.enable_unreferenced_file_removal ? "enabled" : "disabled"
+      settings = {
+        unreferenced_days = var.unreferenced_days
+        non_current_days  = var.non_current_days
+      }
+    }
+  }
+}
+```
+
+**Design rationale**: Uses AWS defaults (3 days unreferenced, 10 days noncurrent) which provide a reasonable balance between storage cleanup and data safety for the Treasury bill dataset.
+
+### Table Level Maintenance
+
+#### Compaction
+
+Combines smaller files into larger ones to improve query performance and applies row-level deletes. The module configures:
+
+```python
+locals {
+  default_maintenance_configuration = {
+    iceberg_compaction = {
+      status = var.enable_compaction ? "enabled" : "disabled"
+      settings = {
+        target_file_size_mb = var.target_file_size_mb
+      }
+    }
+    # ...
+  }
+}
+```
+
+**Design rationale**: 128MB target (vs. 512MB default) balances file size with the relatively small daily Treasury data volume, avoiding over-sized files that could impact query performance.
+
+#### Snapshot Management
+
+Controls retention of table snapshots to manage storage costs while preserving data lineage:
+
+```python
+locals {
+  default_maintenance_configuration = {
+    # ...
+    iceberg_snapshot_management = {
+      status = var.enable_snapshot_management ? "enabled" : "disabled"
+      settings = {
+        min_snapshots_to_keep  = var.min_snapshots_to_keep
+        max_snapshot_age_hours = var.max_snapshot_age_hours
+      }
+    }
+  }
+}
+```
+
+**Design rationale**:
+
+- **3 minimum snapshots**: Provides safety buffer for recovery while limiting storage
+- **168 hours (7 days) maximum age**: Weekly Treasury bill cycles
+
+Both configurations are applied via the table resource's `maintenance_configuration` block.
+
+**Reference**
+
+- [S3 Tables maintenance](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-maintenance-overview.html)
+
+---
+
+## Encryption
+
+The project uses the default encryption with Amazon S3 managed keys (SSE-S3). This provides AES-256 encryption at no additional cost and is applied to all tables unless otherwise specified.
+
+**Reference**
+
+- [Protecting S3 table data with encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-encryption.html)
+
+---
+
 ## Lake Formation Integration
 
 ### Overview
