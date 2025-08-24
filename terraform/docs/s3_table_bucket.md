@@ -218,11 +218,8 @@ variable "table_bucket_policy_actions" {
 **References**
 
 - [AmazonS3TablesFullAccess managed policy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonS3TablesFullAccess.html)
-
 - [Actions for S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-setting-up.html#s3-tables-actions)
-
 - [IAM identity-based policies for S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-identity-based-policies.html)
-
 - [Resource-based policies for S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-resource-based-policies.html)
 
 ---

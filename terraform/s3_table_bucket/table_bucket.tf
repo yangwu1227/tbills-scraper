@@ -60,12 +60,6 @@ data "aws_iam_policy_document" "table_bucket_policy" {
       "${aws_s3tables_table_bucket.main.arn}/namespace/${var.namespace}",
       "${aws_s3tables_table_bucket.main.arn}/namespace/${var.namespace}/table/${var.table_name}"
     ]
-
-    condition {
-      test     = "StringEquals"
-      variable = "s3tables:namespace"
-      values   = [var.namespace]
-    }
   }
 }
 
