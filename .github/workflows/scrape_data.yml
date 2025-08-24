@@ -2,7 +2,9 @@ name: Scrape Treasury Bills Data
 
 on:
   schedule:
-    - cron: '0 18 * * 1-5'  # Run at 6 PM UTC, Monday to Friday (weekdays)
+    # According to https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_bill_rates
+    # Market quotations are obtained at approximately 3:30 PM each business day by the Federal Reserve Bank of New York
+    - cron: '0 22 * * 1-5'  # Run at 10 PM UTC, Monday to Friday (5 PM EST weekdays)
   pull_request:
     branches:
       - main
