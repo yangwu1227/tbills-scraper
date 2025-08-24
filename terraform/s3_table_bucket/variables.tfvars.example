@@ -5,12 +5,13 @@ table_bucket_name                            = "s3-tables-bucket" # Must be glob
 terraform_remote_state_bucket                = "terraform-remote-state-bucket" # Name of the S3 bucket for Terraform state files
 terraform_remote_state_github_actions_s3_key = "key/to/terraform.tfstate" # S3 key for the Terraform remote state of the GitHub Actions role created
 
-# S3 Tables Policy Actions - Complete list of permissions for GitHub Actions
+# See https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-setting-up.html#s3-tables-actions
 table_bucket_policy_actions = [
   # Table bucket management
   "s3tables:CreateTableBucket",
   "s3tables:GetTableBucket",
   "s3tables:DeleteTableBucket",
+  "s3tables:ListTableBuckets",
   # Namespace management
   "s3tables:CreateNamespace",
   "s3tables:GetNamespace",
@@ -39,9 +40,11 @@ table_bucket_policy_actions = [
   "s3tables:PutTableBucketMaintenanceConfiguration",
   "s3tables:GetTableMaintenanceConfiguration",
   "s3tables:PutTableMaintenanceConfiguration",
+  "s3tables:GetTableMaintenanceJobStatus",
   # Encryption configuration
   "s3tables:GetTableBucketEncryption",
   "s3tables:PutTableBucketEncryption",
+  "s3tables:DeleteTableBucketEncryption",
   "s3tables:GetTableEncryption",
   "s3tables:PutTableEncryption"
 ]
