@@ -70,6 +70,7 @@ resource "aws_iam_policy" "github_actions_policy" {
           "s3:ListBucket",
           "s3:GetObject",
           "s3:PutObject",
+          "s3:DeleteObject",
         ],
         Resource = [
           "arn:aws:s3:::${var.terraform_remote_state_bucket}",
