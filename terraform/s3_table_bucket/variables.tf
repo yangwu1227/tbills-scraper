@@ -25,7 +25,7 @@ variable "terraform_remote_state_github_actions_s3_key" {
 variable "table_bucket_name" {
   description = "Name of the S3 Tables bucket"
   type        = string
-  default     = "tbills-scraper-s3-tables"
+  default     = "financial-data"
 
   validation {
     condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.table_bucket_name))
@@ -85,7 +85,7 @@ variable "table_bucket_policy_actions" {
 variable "namespace" {
   description = "Name of the namespace to create"
   type        = string
-  default     = "scraper"
+  default     = "treasury_bills"
 
   validation {
     condition = (
