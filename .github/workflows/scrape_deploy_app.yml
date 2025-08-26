@@ -1,4 +1,4 @@
-name: Scrape Treasury Bills Data
+name: Scrape & Deploy Treasury Bills App
 
 on:
   schedule:
@@ -13,7 +13,8 @@ on:
       - 'main.py'
       - 'pyproject.toml'
       - 'uv.lock'
-      - '.github/workflows/scrape_data.yml'
+      - '.github/workflows/scrape_deploy_app.yml'
+      - 'app/**'
   push:
     branches:
       - main
@@ -22,7 +23,8 @@ on:
       - 'main.py'
       - 'pyproject.toml'
       - 'uv.lock'
-      - '.github/workflows/scrape_data.yml'
+      - '.github/workflows/scrape_deploy_app.yml'
+      - 'app/**'
   workflow_dispatch:
 
 permissions:
@@ -33,6 +35,9 @@ jobs:
   scrape:
     name: Scrape US Treasury Bills Data
     runs-on: ubuntu-latest
+    outputs:
+      did_commit: ${{ steps.commit-data.outputs.changes_detected }}
+      commit_sha:  ${{ steps.commit-data.outputs.commit_hash }}
 
     steps:
       - name: Checkout repository
@@ -110,7 +115,51 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "scraper: saved data to s3 table bucket $(date +'%Y-%m-%d %H:%M:%S')"
+          commit_message: "scraper: saved data to s3 table bucket ${{ github.run_id }} - ${{ github.run_number }}"
           file_pattern: "app/data/**"
+          disable_globbing: true
+          branch: main
+
+  deploy:
+    name: Export and Commit Shinylive App
+    runs-on: ubuntu-latest
+    needs: scrape
+    # Only run deploy if scrape succeeded AND a commit actually happened
+    if: ${{ success() && needs.scrape.outputs.did_commit == 'true' }}
+
+    steps:
+      - name: Checkout repository
+        id: checkout-repo
+        uses: actions/checkout@v4
+        with:
+          # Build from the exact commit that was created by the scrape job (fallback to current SHA if empty)
+          ref: ${{ needs.scrape.outputs.commit_sha || github.sha }}
+
+      - name: Setup python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+            python-version: '3.12' 
+
+      - name: Setup uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@v6
+        with:
+            version: "0.8.9"
+
+      - name: Synchronize environment
+        id: uv-sync
+        run: uv sync --locked
+
+      - name: Export shinylive
+        id: export-shinylive
+        run: uv run shinylive export app docs 
+    
+      - name: Commit docs
+        id: commit-docs
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "app: exported to docs ${{ github.run_id }} - ${{ github.run_number }}"
+          file_pattern: "docs/**"
           disable_globbing: true
           branch: main
