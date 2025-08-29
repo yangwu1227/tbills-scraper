@@ -1,4 +1,4 @@
-name: Terraform Deployment
+name: Terraform Deployment (Reusable) 
 
 on:
   workflow_call:

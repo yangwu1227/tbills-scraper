@@ -1,4 +1,4 @@
-name: S3 Table Bucket Terraform Workflow
+name: Deploy S3 Table Bucket
 
 on:
   pull_request:
