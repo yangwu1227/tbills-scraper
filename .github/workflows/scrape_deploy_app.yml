@@ -119,6 +119,10 @@ jobs:
           file_pattern: "app/data/**"
           disable_globbing: true
           branch: main
+          # Ensure commits are authored solely by the bot
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          commit_author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
 
   deploy:
     name: Export and Commit Shinylive App
@@ -163,3 +167,7 @@ jobs:
           file_pattern: "docs/**"
           disable_globbing: true
           branch: main
+          # Ensure commits are authored solely by the bot
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          commit_author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
