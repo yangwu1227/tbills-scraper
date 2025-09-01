@@ -53,7 +53,7 @@ Another output table is written to `app/data/` for display in the web applicatio
 |--------|------|-------------|
 | `Shorter Maturity (weeks)` | INT | Shorter maturity in weeks (4, 6, 8, 13, 17, 26, 52) |
 | `Shorter CEY (%)` | FLOAT | Shorter coupon-equivalent yield percentage |
-| `Longer Maturity (weeks)` | INT | Longer maturity in weeks (4, 6, 8, 13, 17, 26, 52) |
+| `Longer Maturity (weeks)` | INT | Longer maturity in weeks (6, 8, 13, 17, 26, 52) |
 | `Longer CEY (%)` | FLOAT | Longer coupon-equivalent yield percentage |
 | `Break-Even Implied Forward Yield (%)` | FLOAT | Break-even implied forward yield percentage |
 
@@ -173,6 +173,7 @@ S3 Table Buckets use a dual-layer permissions model that combines IAM-based with
 When a request is made to perform an action on S3 Tables resources (e.g., during Terraform apply when the Github Actions IAM role tries to `Create*`, `Put*`, or `Delete*`, etc.), both permission layers are checked:
 
 1. **IAM Permissions**: The IAM principal must have the necessary S3 Tables permissions
+
 2. **Resource-Level Guardrails**: The action must be explicitly allowed in the table bucket, namespace, or table policy
 
 ### Current Implementation in the Project
@@ -196,7 +197,7 @@ The Github Actions role uses the AWS managed policy `AmazonS3TablesFullAccess`, 
 
 #### Resource-Level Guardrails
 
-The table bucket policy explicitly allows specific actions via the `table_bucket_policy_actions` variable, which currently matches all actions included in the managed policy:
+The table bucket policy explicitly allows specific actions via the `table_bucket_policy_actions` variable, which currently matches all actions included in the managed policy (`AmazonS3TablesFullAccess`):
 
 ```python
 variable "table_bucket_policy_actions" {
@@ -268,7 +269,7 @@ Grants Lake Formation permissions to a specific IAM principal (user or role) for
 
 In order for this IAM role to access data pointed to by the data catalog, it must pass permission checks by both IAM and Lake Formation.
 
-1. **IAM Permissions**: The IAM role itself must have the necessary permissions to perform actions on required AWS resources: S3, Lake Formation, Glue, Athena, S3Tables, DynamoDB (Terraform remote state management)
+1. **IAM Permissions**: The IAM role itself must have the necessary permissions to perform actions on required AWS resources: S3, Lake Formation, Glue, Athena, S3Tables
 
 2. **Lake Formation Permissions**: On the Lake Formation side, we must grant this IAM role Lake Formation permissions on the table or database resources it needs to access. **Note:** The script implements table-level permission grants, which is more granular than database-level grants.
 
@@ -286,7 +287,7 @@ The Lake Formation permissions model is a combination of Lake Formation and IAM 
 
 ---
 
-## ⚠️ Critical Distinction
+## ⚠️ Permissions Models
 
 > **IMPORTANT:** There are two different types of permissions required for S3 Tables:
 >
@@ -309,4 +310,4 @@ The Lake Formation permissions model is a combination of Lake Formation and IAM 
 > - **Configured via:** IAM policies + Lake Formation permissions (also dual-layer model)
 > - **Used for:** Data analytics, queries, ETL operations
 >
-> **Both permission layers are required but serve completely different purposes.** The GitHub Actions role needs S3 Tables resource management permissions to deploy infrastructure via Terraform, *AND* Lake Formation data access permissions to read/write actual Treasury bill data during scraping.
+> **Both permission layers are required but serve different purposes.** The GitHub Actions role needs S3 Tables resource management permissions to deploy infrastructure via Terraform, *AND* Lake Formation data access permissions to read/write actual Treasury bill data during scraping.

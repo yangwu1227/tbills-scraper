@@ -36,19 +36,25 @@ This project automates the collection, processing, and analysis of U.S. Treasury
 
 ## Dependency Management
 
-This project uses [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage its dependencies (non-package mode). The required python version in `pyproject.toml` is `>=3.12`. For local development, ensure that a Python 3.12.x interpreter is searchable.
+This project uses [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage its dependencies ([non-package mode](https://docs.astral.sh/uv/concepts/projects/config/#project-packaging)). The required python version in `pyproject.toml` is `>=3.12`. For local development, ensure that a Python `3.12.x` interpreter is searchable.
+
+There are at least three simple ways to set up this project.
 
 ### Python Interpreter managed by `uv`
 
 ```bash
-uv sync --frozen --all-groups
+uv sync --frozen --all-groups --managed-python
 ```
+
+See documentions for [frozen](https://docs.astral.sh/uv/reference/cli/#uv-sync--frozen), [managed-python](https://docs.astral.sh/uv/reference/cli/#uv-sync--managed-python), and [all-groups](https://docs.astral.sh/uv/reference/cli/#uv-sync--all-groups).
 
 ### Python Interpreter managed by `conda`
 
 ```bash
-conda create --name python_ml -y python=3.12
-uv sync --frozen --all-groups
+conda search python | grep " 3\.\(12\)\."
+conda create --name tbills_scraper -y python=3.12
+conda activate tbills_scraper
+uv sync --frozen --all-groups --no-managed-python
 ```
 
 ### Python Interpreter managed by `pyenv`
@@ -59,5 +65,5 @@ pyenv install --list | grep " 3\.\(12\)\."
 # As an example, install Python 3.12.8
 pyenv install 3.12.8
 pyenv local 3.12.8
-uv sync --frozen --all-groups
+uv sync --frozen --all-groups --no-managed-python
 ```
