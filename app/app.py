@@ -98,7 +98,7 @@ with ui.navset_bar(id="pages", title="Daily Treasury Bill Yields"):
 
             with ui.card(full_screen=True):
                 ui.card_header(
-                    "Yield Spread (Spread = Shorter % − Longer % Reported in Percentage Points)"
+                    "Yield Spread (Shorter % − Longer % Reported in Percentage Points)"
                 )
 
                 @render_plotly
@@ -143,7 +143,7 @@ with ui.navset_bar(id="pages", title="Daily Treasury Bill Yields"):
                 def interpretation() -> List[Union[ui.HTML, ui.Tag]]:
                     content = r"""
                     **What it is.** For any pair *(shorter weeks → longer weeks)*, the break-even implied forward yield, $y_{\mathrm{be}}$, is the **constant annualized yield** that,
-                    if we earn it on every short-bill roll (including the final stub), makes our **gross return factor** (wealth multiple) over the horizon **exactly equal** to buying
+                    if we earn it on every short-bill roll (including the final stub), makes our **gross return factor** over the horizon **exactly equal** to buying
                     the longer bill and compounding it to the same horizon.
 
                     - A **stub** is the final partial period of a short-bill investment that does not complete a full roll.
@@ -152,15 +152,14 @@ with ui.navset_bar(id="pages", title="Daily Treasury Bill Yields"):
 
                     Formally, with day-count base $dc=365$ and horizon $H=365$ days:
 
-                    - Short tenor: maturity $m_s$ days; full rolls $k_s=\left\lfloor \tfrac{H}{m_s}\right\rfloor$; stub $r_s=H-k_s\,m_s$
-                    - Long tenor: maturity $m_l$ days; observed coupon-equivalent yield $y_l$; full rolls $k_l=\left\lfloor \tfrac{H}{m_l}\right\rfloor$; stub $r_l=H-k_l\,m_l$
+                    - Short tenor: maturity $m_s$ days; full rolls $k_s=\left\lfloor \tfrac{H}{m_s}\right\rfloor$; stub $r_s=H-k_s \cdot m_s$
+                    - Long tenor: maturity $m_l$ days; observed coupon-equivalent yield $y_l$; full rolls $k_l=\left\lfloor \tfrac{H}{m_l}\right\rfloor$; stub $r_l=H-k_l \cdot m_l$
 
                     The break-even identity used to solve for $y_{\mathrm{be}}$ is
 
                     $$
                     \bigl(1+y_{\mathrm{be}}\tfrac{m_s}{dc}\bigr)^{k_s}
-                    \bigl(1+y_{\mathrm{be}}\tfrac{r_s}{dc}\bigr)
-                    \;=\;
+                    \bigl(1+y_{\mathrm{be}}\tfrac{r_s}{dc}\bigr) =
                     \bigl(1+y_l\tfrac{m_l}{dc}\bigr)^{k_l}
                     \bigl(1+y_l\tfrac{r_l}{dc}\bigr)
                     $$
@@ -181,18 +180,18 @@ with ui.navset_bar(id="pages", title="Daily Treasury Bill Yields"):
 
                     4. **At each roll date (dynamic policy):** We recompute with current rates and the remaining horizon, then act:
 
-                        - If the then-current short CEY $\ge y_{\mathrm{be}}$ (recomputed), we **keep rolling**.  
+                        - If the then-current short CEY $> y_{\mathrm{be}}$ (recomputed), we **keep rolling**.  
                         - If it is $< y_{\mathrm{be}}$, we **switch** into the longer tenor.
 
                     **Examples (from the table)**
 
-                    - $4 \rightarrow 26$ weeks: $y_{\mathrm{be}}\approx 4.016\%$. If we believe 4-week CEYs will, on average over our rolls, be $\ge 4.016\%$, rolling 4-week should beat buying the 26-week today. If we expect them to average $< 4.016\%$, we buy the 26-week.  
-                    - $4 \rightarrow 52$ weeks: $y_{\mathrm{be}}\approx 3.822\%$. If we expect the 4-week CEY to average $\ge 3.822\%$ over the year, rolling 4-week should beat buying the 52-week; otherwise, we lock the 52-week.
+                    - $4 \rightarrow 26$ weeks: $y_{\mathrm{be}}\approx 4.016\%$. If we believe 4-week CEYs will, on average over our rolls, be $> 4.016\%$, rolling 4-week should beat buying the 26-week today. If we expect them to average $< 4.016\%$, we buy the 26-week.  
+                    - $4 \rightarrow 52$ weeks: $y_{\mathrm{be}}\approx 3.822\%$. If we expect the 4-week CEY to average $> 3.822\%$ over the year, rolling 4-week should beat buying the 52-week; otherwise, we lock the 52-week.
 
                     **What this does and does not assume**
 
                     - We use **coupon-equivalent yield (CEY)** on a $dc=365$ basis and an **integer-roll + self-consistent stub** convention (the leftover days are invested at the same rate we are solving for).  
-                    - We **ignore** taxes, transaction costs, bid-ask, settlement timing, and minimums. Since tax treatment is identical for both legs, the break-even rule is unchanged; when comparing TBills to other investments, we should compare **after-tax** yields.  
+                    - We **ignore** factors like taxes, transaction costs, bid-ask, settlement timing. Since tax treatment is identical for both shorter and longer legs, the break-even rule is unchanged; however, when comparing TBills to other taxable investments, we should compare **after-tax** yields.  
                     - **Not a forecast.** $y_{\mathrm{be}}$ is a threshold we compare our expectations to; realized results depend on the **path** of short rates at each roll.  
                     - The computed $y_{\mathrm{be}}$ is specific to the chosen pair $(m_s \rightarrow m_l)$, today’s $y_l$, and the horizon $H$. If any of these change (e.g., when we recompute on a later date), the threshold will generally change as well.
 
@@ -200,7 +199,7 @@ with ui.navset_bar(id="pages", title="Daily Treasury Bill Yields"):
 
                     Use $y_{\mathrm{be}}$ as a single, stable hurdle to drive the choice:
 
-                    - **Expect $\ge y_{\mathrm{be}}$** $\Rightarrow$ **roll the shorter tenor**.  
+                    - **Expect $> y_{\mathrm{be}}$** $\Rightarrow$ **roll the shorter tenor**.  
                     - **Expect $< y_{\mathrm{be}}$** $\Rightarrow$ **buy the longer tenor now**.  
 
                     We monitor this at each roll; this dashboard will recompute $y_{\mathrm{be}}$ with new rates.
