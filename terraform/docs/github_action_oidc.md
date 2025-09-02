@@ -4,9 +4,7 @@ GitHub Actions is a CI/CD service that allows us to automate workflows directly 
 
 - `terraform_validate_plan_apply.yml` and `terraform_s3_table_bucket.yml` (AWS): These workflows deploy the S3 Table Bucket and its associated resources.
 
-- `scrape_data.yml` (AWS): This workflow is responsible for scraping the Treasury bill data.
-
-- `deploy_app.yml`: This workflow deploys the Shinylive web application.
+- `scrape_deploy_app.yml` (AWS): This workflow is responsible for scraping the Treasury bill data and deploying the Shinylive web application.
 
 Two of these workflows interact with AWS services, which requires us to configure an [OpenID Connect](https://openid.net/developers/how-connect-works/) (OIDC) provider. This provider enables GitHub Actions to authenticate with AWS using OIDC tokens, enhancing security by removing the need for long-lived AWS credentials stored as secrets in the GitHub repository.
 
@@ -24,7 +22,7 @@ For additional details, refer to the following resources:
 
 ## Workflows
 
-This project uses four GitHub Actions workflows for different automation tasks:
+This project uses three GitHub Actions workflows for different automation tasks:
 
 ### Infrastructure Workflows
 
@@ -45,7 +43,7 @@ This workflow is then used by `terraform_s3_table_bucket.yml` to deploy an S3 Ta
 
 #### `scrape_deploy_app.yml`
 
-This workflow handles the daily Treasury bill data scraping and processing, followed by deploying the Shinylive web application.
+This workflow handles the daily Treasury bill data scraping and processing, followed by deploying the Shinylive web application in a single combined workflow.
 
 **Required Environment Variables:**
 
@@ -103,8 +101,6 @@ We leverage several GitHub Marketplace actions to enhance security, reliability,
 
 The project implements a **reusable workflow pattern** for Terraform deployments, separating the workflow logic from the specific infrastructure being deployed. This pattern follows the **template method** design pattern, where the core deployment process is standardized while allowing customization through input parameters.
 
-#### Architecture
-
 ```shell
 terraform_validate_plan_apply.yml (Reusable Template)
 ├── Input: root_path parameter
@@ -119,12 +115,12 @@ terraform_s3_table_bucket.yml (Consumer)
 
 #### Key Designs
 
-**1. Separation of Concerns**
+##### Separation of Concerns
 
 - **Template workflow** (`terraform_validate_plan_apply.yml`): Contains the deployment logic
 - **Consumer workflow** (`terraform_s3_table_bucket.yml`): Defines triggers and context
 
-**2. Path-Based Triggering**
+##### Path-Based Triggering
 
 The consumer workflow uses path filtering to minimize unnecessary executions:
 
@@ -134,7 +130,7 @@ paths:
   - '.github/workflows/*.yml'           # Workflow changes
 ```
 
-**3. Artifact-Based State Management**
+##### Artifact-Based State Management
 
 The workflow splits into two jobs (`terraform-fmt-validate-plan` and `terraform-apply`) with artifact passing:
 
@@ -144,7 +140,7 @@ The workflow splits into two jobs (`terraform-fmt-validate-plan` and `terraform-
 
 - **Retention policy**: 1-day retention minimizes storage costs while maintaining job reliability
 
-**4. Branch-Based Execution Strategy**
+##### Branch-Based Execution Strategy
 
 - **Pull requests**: Execute `format`, `validate`, and `plan` (with PR comments) (without `apply`)
 
@@ -156,8 +152,6 @@ The workflow splits into two jobs (`terraform-fmt-validate-plan` and `terraform-
 
 The `scrape_deploy_app.yml` workflow implements a **sequential job dependency pattern** that chains data scraping with application deployment, using conditional execution to optimize resource usage.
 
-#### Architecture
-
 ```shell
 scrape_deploy_app.yml
 ├── Job 1: scrape (Always runs)
@@ -165,15 +159,21 @@ scrape_deploy_app.yml
 │   ├── Conditional commit (main branch only)
 │   └── Outputs: did_commit, commit_sha
 │
-└── Job 2: deploy (Conditional)
-    ├── Depends: scrape success + did_commit == 'true'
-    ├── Checkout: exact commit from scrape job
-    └── Export & commit Shinylive app
+├── Job 2: deploy (Conditional)
+│   ├── Depends: scrape success + did_commit == 'true'
+│   ├── Checkout: exact commit from scrape job
+│   ├── Outputs: did_commit, commit_sha
+│   └── Export & commit Shinylive app
+│ 
+└── Job 3: pages (Conditional)
+    ├── Depends: deploy success + did_commit == 'true'
+    ├── Checkout: exact commit from deploy job
+    └── Publish to GitHub Pages from 'docs'
 ```
 
 #### Key Designs
 
-**1. Outputs Conditions**
+##### Outputs Conditions
 
 The [git-auto-commit](https://github.com/stefanzweifel/git-auto-commit-action) action has [outputs](https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#outputs) that can be used to control job execution flow.
 
@@ -188,7 +188,7 @@ if: ${{ success() && needs.scrape.outputs.did_commit == 'true' }}
 
 The deploy job only executes when scrape succeeds *AND* data was actually committed, preventing unnecessary deployments, especially when data did not change.
 
-**2. Branch-Aware Commit Strategy**
+##### Branch-Aware Commit Strategy
 
 ```shell
 if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -196,7 +196,7 @@ if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
 Data commits only occur on main branch pushes, while PR events perform validation of the python codewithout persistence.
 
-**3. Scheduling**
+##### Scheduling
 
 ```shell
 schedule:
@@ -205,7 +205,7 @@ schedule:
 
 Triggers the job after Treasury data publication on each day (~ 3:30 PM EST daily), with a buffer of 1 hour and 30 minutes.
 
-**4. Atomic Commit Consistency**
+##### Atomic Commit Consistency
 
 The `deploy` job checks out the exact commit created by the scrape job:
 
