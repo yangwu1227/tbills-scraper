@@ -4,9 +4,7 @@ GitHub Actions is a CI/CD service that allows us to automate workflows directly 
 
 - `terraform_validate_plan_apply.yml` and `terraform_s3_table_bucket.yml` (AWS): These workflows deploy the S3 Table Bucket and its associated resources.
 
-- `scrape_data.yml` (AWS): This workflow is responsible for scraping the Treasury bill data.
-
-- `deploy_app.yml`: This workflow deploys the Shinylive web application.
+- `scrape_deploy_app.yml` (AWS): This workflow is responsible for scraping the Treasury bill data and deploying the Shinylive web application.
 
 Two of these workflows interact with AWS services, which requires us to configure an [OpenID Connect](https://openid.net/developers/how-connect-works/) (OIDC) provider. This provider enables GitHub Actions to authenticate with AWS using OIDC tokens, enhancing security by removing the need for long-lived AWS credentials stored as secrets in the GitHub repository.
 
@@ -24,7 +22,7 @@ For additional details, refer to the following resources:
 
 ## Workflows
 
-This project uses four GitHub Actions workflows for different automation tasks:
+This project uses three GitHub Actions workflows for different automation tasks:
 
 ### Infrastructure Workflows
 
@@ -45,7 +43,7 @@ This workflow is then used by `terraform_s3_table_bucket.yml` to deploy an S3 Ta
 
 #### `scrape_deploy_app.yml`
 
-This workflow handles the daily Treasury bill data scraping and processing, followed by deploying the Shinylive web application.
+This workflow handles the daily Treasury bill data scraping and processing, followed by deploying the Shinylive web application in a single combined workflow.
 
 **Required Environment Variables:**
 
