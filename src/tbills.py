@@ -278,15 +278,16 @@ class TreasuryBillScraper(object):
             region_name=self.settings.aws_region
         )
 
-    def scrape_treasury_data(self) -> pl.DataFrame:
+    def scrape_treasury_data(self) -> Optional[pl.DataFrame]:
         """
         Fetch the latest treasury daily bill bond-equivalent yields.
 
         Returns
         -------
-        pl.DataFrame
+        Optional[pl.DataFrame]
             DataFrame (long-format) containing the latest treasury yields
-            for each maturity bucket: 4, 6, 8, 13, 17, 26, 52 weeks.
+            for each maturity bucket: 4, 6, 8, 13, 17, 26, 52 weeks; or None
+            if no data is available.
 
         Raises
         ------
@@ -305,6 +306,10 @@ class TreasuryBillScraper(object):
         logger.info(f"Fetching data from {url}")
         response: requests.Response = requests.get(url, timeout=30)
         response.raise_for_status()
+
+        if not response.content:
+            logger.warning("Empty or invalid response received from Treasury website")
+            return None
 
         data: pl.DataFrame = (
             pl.scan_csv(

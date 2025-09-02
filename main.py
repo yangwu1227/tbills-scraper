@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import polars as pl
 from loguru import logger
@@ -12,7 +13,12 @@ APP_DATA_DIR: Path = PROJECT_ROOT_DIR / "app" / "data"
 def main() -> int:
     aws_settings: AWSSettings = AWSSettings()
     tbills_scraper: TreasuryBillScraper = TreasuryBillScraper(settings=aws_settings)
-    data: pl.DataFrame = tbills_scraper.scrape_treasury_data()
+    data: Optional[pl.DataFrame] = tbills_scraper.scrape_treasury_data()
+
+    if data is None:
+        logger.info("No data scraped, returning early")
+        return 0
+
     APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
     logger.info("Saving scraped data to local app data directory")
     data.select(["maturity", "yield_pct"]).write_csv(APP_DATA_DIR / "daily_yields.csv")
