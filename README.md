@@ -4,6 +4,8 @@ This is a Python 3 based pipeline that scrapes daily Treasury bill rates and pro
 
 **🌐 [View Live Web App](https://yangwu1227.github.io/tbills-scraper/)**
 
+**Note**: The web application runs entirely in your browser using [Shinylive](https://shiny.posit.co/py/get-started/shinylive.html). Initial loading may take a minute on first access.
+
 - Yield curve
 - Yield spread
 - Break-even implied forward yield
