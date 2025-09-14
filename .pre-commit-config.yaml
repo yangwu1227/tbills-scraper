@@ -9,9 +9,35 @@ default_stages: [pre-commit, pre-merge-commit, pre-push, manual]
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.10
+    rev: v0.13.0
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
         types_or: [python]
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.8.17
+    hooks:
+      - id: uv-lock
+        files: ^(pyproject\.toml)$
+      - id: uv-sync
+        entry: uv sync
+        # Use the active venv instead of recreating it
+        # Exit with error if lockfile is not up to date
+        # Install everything (default + dependency groups)
+        args: ["--active", "--locked", "--all-groups"]
+        stages: [post-checkout, post-merge, post-rewrite]
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+      - id: uv-export
+        args:
+          [
+            "--frozen",
+            "--all-groups",
+            "--no-hashes",
+            "--output-file=requirements.txt",
+          ]
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
