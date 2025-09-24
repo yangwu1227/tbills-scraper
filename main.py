@@ -4,7 +4,12 @@ from typing import Optional
 import polars as pl
 from loguru import logger
 
-from src.tbills import AWSSettings, Stats, TreasuryBillAnalytics, TreasuryBillScraper
+from src.tbills import (
+    AWSSettings,
+    TreasuryBillAnalytics,
+    TreasuryBillScraper,
+    UpsertStats,
+)
 
 PROJECT_ROOT_DIR: Path = Path(__file__).parent
 APP_DATA_DIR: Path = PROJECT_ROOT_DIR / "app" / "data"
@@ -22,7 +27,7 @@ def main() -> int:
     APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
     logger.info("Saving scraped data to local app data directory")
     data.select(["maturity", "yield_pct"]).write_csv(APP_DATA_DIR / "daily_yields.csv")
-    _: Stats = tbills_scraper.upsert_data(data)
+    _: UpsertStats = tbills_scraper.upsert_data(data)
 
     tbills_analytics: TreasuryBillAnalytics = TreasuryBillAnalytics(
         input_table=data,
