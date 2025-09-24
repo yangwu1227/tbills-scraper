@@ -13,7 +13,6 @@ from typing import (
     Optional,
     Set,
     Tuple,
-    TypedDict,
     Union,
 )
 
@@ -25,7 +24,7 @@ import polars.selectors as cs
 import requests
 import sympy as sp
 from loguru import logger
-from pydantic import Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -38,14 +37,32 @@ START_END_ALNUM_LOWER_TABLE_NS: Final[Pattern[str]] = re_compile(
 )
 
 
-class Stats(TypedDict):
+class UpsertStats(BaseModel):
     """
-    Typed structure for insert/merge statistics.
+    Pydantic model for insert/merge statistics.
+
+    Attributes
+    ----------
+    rows_processed : int
+        Total number of rows processed in the operation
+    rows_inserted : int
+        Number of new rows inserted into the table
+    rows_updated : int
+        Number of existing rows updated in the table
     """
 
-    rows_processed: int
-    rows_inserted: int
-    rows_updated: int
+    rows_processed: int = Field(ge=0, description="Total number of rows processed")
+    rows_inserted: int = Field(ge=0, description="Number of rows inserted")
+    rows_updated: int = Field(ge=0, description="Number of rows updated")
+
+    class Config:
+        frozen: bool = False
+
+    def __str__(self) -> str:
+        """
+        String representation of stats.
+        """
+        return f"UpsertStats(processed={self.rows_processed}, inserted={self.rows_inserted}, updated={self.rows_updated})"
 
 
 class AWSSettings(BaseSettings):
@@ -93,6 +110,7 @@ class AWSSettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="forbid",
+        populate_by_name=True,
     )
 
     @field_validator("athena_output_s3")
@@ -452,7 +470,7 @@ class TreasuryBillScraper(object):
         )
         return data
 
-    def upsert_data(self, data: pl.DataFrame) -> Stats:
+    def upsert_data(self, data: pl.DataFrame) -> UpsertStats:
         """
         Upsert into an Iceberg table using `MERGE INTO` (engine v3).
 
@@ -466,7 +484,7 @@ class TreasuryBillScraper(object):
 
         Returns
         -------
-        Stats
+        UpsertStats
             Counts for processed, inserted, and updated rows.
 
         Raises
@@ -474,14 +492,14 @@ class TreasuryBillScraper(object):
         ValueError
             If required columns are missing.
         """
-        stats: Stats = {
-            "rows_processed": len(data),
-            "rows_inserted": 0,
-            "rows_updated": 0,
-        }
+        upsert_stats: UpsertStats = UpsertStats(
+            rows_processed=len(data),
+            rows_inserted=0,
+            rows_updated=0,
+        )
         if len(data) == 0:
             logger.info("No new data to upsert")
-            return stats
+            return upsert_stats
 
         required_cols: List[str] = ["date", "maturity", "yield_pct", "scrape_timestamp"]
         missing_cols: List[str] = [
@@ -542,9 +560,9 @@ class TreasuryBillScraper(object):
 
         to_insert_count_data: pd.DataFrame = self._select_query(to_insert_count_query)
         to_update_count_data: pd.DataFrame = self._select_query(to_update_count_query)
-        stats["rows_inserted"] = int(to_insert_count_data["count"].at[0])
-        stats["rows_updated"] = int(to_update_count_data["count"].at[0])
-        logger.info(f"Upsert stats: {stats}")
+        upsert_stats.rows_inserted = int(to_insert_count_data["count"].at[0])
+        upsert_stats.rows_updated = int(to_update_count_data["count"].at[0])
+        logger.info(f"Upsert stats: {upsert_stats}")
 
         upsert_query: str = f"""
             MERGE INTO 
@@ -567,7 +585,7 @@ class TreasuryBillScraper(object):
 
         _: str = self._execute_query(upsert_query)
 
-        return stats
+        return upsert_stats
 
 
 class TreasuryBillAnalytics(object):
