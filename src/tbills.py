@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Self,
     Set,
     Tuple,
     Union,
@@ -112,6 +113,55 @@ class AWSSettings(BaseSettings):
         extra="forbid",
         populate_by_name=True,
     )
+
+    @classmethod
+    def from_config(
+        cls,
+        aws_region: Optional[str] = None,
+        athena_workgroup: Optional[str] = None,
+        athena_output_s3: Optional[str] = None,
+        subcatalog: Optional[str] = None,
+        database: Optional[str] = None,
+        table_name: Optional[str] = None,
+    ) -> Self:
+        """
+        Create AthenaSettings from explicit parameters.
+
+        Parameters
+        ----------
+        aws_region : Optional[str]
+            AWS region name.
+        athena_workgroup : Optional[str]
+            Athena workgroup to use.
+        athena_output_s3 : Optional[str]
+            S3 uri for Athena query results.
+        subcatalog : Optional[str]
+            Subcatalog name.
+        database : Optional[str]
+            Database within the catalog.
+        table_name : Optional[str]
+            Target Iceberg table name.
+
+        Returns
+        -------
+        AthenaSettings
+            Configured settings instance.
+        """
+        data: Dict[str, str] = {}
+        if aws_region is not None:
+            data["AWS_REGION"] = aws_region
+        if athena_workgroup is not None:
+            data["ATHENA_WORKGROUP"] = athena_workgroup
+        if athena_output_s3 is not None:
+            data["ATHENA_OUTPUT_S3"] = athena_output_s3
+        if subcatalog is not None:
+            data["SUBCATALOG"] = subcatalog
+        if database is not None:
+            data["DATABASE"] = database
+        if table_name is not None:
+            data["TABLE_NAME"] = table_name
+
+        return cls(**data)
 
     @field_validator("athena_output_s3")
     @classmethod
