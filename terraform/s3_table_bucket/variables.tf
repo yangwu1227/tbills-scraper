@@ -1,21 +1,3 @@
-variable "region" {
-  type        = string
-  description = "AWS region where resources will be deployed"
-  default     = "us-east-1"
-}
-
-variable "profile" {
-  type        = string
-  description = "AWS configuration profile with all required permissions"
-  default     = "admin"
-}
-
-variable "terraform_remote_state_bucket" {
-  type        = string
-  description = "Name of the S3 bucket where the Terraform state files are stored"
-  default     = "tf-cf-templates"
-}
-
 variable "terraform_remote_state_github_actions_s3_key" {
   type        = string
   description = "S3 key for the Terraform remote state of the GitHub Actions role created"
