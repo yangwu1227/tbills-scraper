@@ -21,7 +21,7 @@ locals {
 
 # IAM role for workflow
 resource "aws_iam_role" "github_actions_role" {
-  name = "${var.project_prefix}_github_actions_role"
+  name = "${local.project_prefix}_github_actions_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -44,13 +44,13 @@ resource "aws_iam_role" "github_actions_role" {
     ]
   })
   tags = {
-    Name = "${var.project_prefix}_iam_github_actions_role"
+    Name = "${local.project_prefix}_iam_github_actions_role"
   }
   depends_on = [aws_iam_openid_connect_provider.github_oidc_provider]
 }
 
 resource "aws_iam_policy" "github_actions_policy" {
-  name = "${var.project_prefix}_github_actions_policy"
+  name = "${local.project_prefix}_github_actions_policy"
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -73,8 +73,8 @@ resource "aws_iam_policy" "github_actions_policy" {
           "s3:DeleteObject",
         ],
         Resource = [
-          "arn:aws:s3:::${var.terraform_remote_state_bucket}",
-          "arn:aws:s3:::${var.terraform_remote_state_bucket}/*",
+          "arn:aws:s3:::${local.terraform_remote_state_bucket}",
+          "arn:aws:s3:::${local.terraform_remote_state_bucket}/*",
           "arn:aws:s3:::${var.athena_s3_output_bucket}",
           "arn:aws:s3:::${var.athena_s3_output_bucket}/*"
         ]
@@ -120,7 +120,7 @@ resource "aws_iam_policy" "github_actions_policy" {
     ]
   })
   tags = {
-    Name = "${var.project_prefix}_iam_github_actions_policy"
+    Name = "${local.project_prefix}_iam_github_actions_policy"
   }
 }
 

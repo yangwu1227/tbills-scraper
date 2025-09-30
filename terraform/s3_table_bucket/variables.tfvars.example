@@ -1,8 +1,4 @@
 # AWS Configuration
-region                                       = "us-east-1"
-profile                                      = "aws-profile"
-table_bucket_name                            = "s3-tables-bucket" # Must be globally unique
-terraform_remote_state_bucket                = "terraform-remote-state-bucket" # Name of the S3 bucket for Terraform state files
 terraform_remote_state_github_actions_s3_key = "key/to/terraform.tfstate" # S3 key for the Terraform remote state of the GitHub Actions role created
 
 # See https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-setting-up.html#s3-tables-actions
